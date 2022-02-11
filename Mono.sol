@@ -6,12 +6,15 @@ contract Mono{
     address private owner;
     uint256 private expectedCost = 0.1 ether;
     uint256 public payedCost = 0 ether;
+    uint256 public monosCost = 0 ether;
     bool public locked = true;
+    uint256 public totalVipVoter = 0;
 
     struct Person {
         address name;
         bool Payed;
         uint256 payedAmount;
+        bool isVip;
     }
 
     mapping(address => Person) public registeredPerson;
@@ -29,7 +32,12 @@ contract Mono{
     }
     
     modifier onlyOnce() {
-        require(registeredPerson[msg.sender].Payed== false);
+        require(registeredPerson[msg.sender].Payed == false);
+        _;
+    }
+
+    modifier onlyVip() {
+        require(registeredPerson[msg.sender].name == address(0) && registeredPerson[msg.sender].isVip == true);
         _;
     }
 
@@ -41,7 +49,7 @@ contract Mono{
         locked = false;
     }
 
-    function setExpectedCost(uint x) public  {
+    function setExpectedCost(uint x) external onlyOwner  {
         expectedCost = x ;
     }
 
@@ -70,7 +78,7 @@ contract Mono{
         uint256 senderBalance = sender.balance;
         uint256 amount = msg.value;
         uint256 myBalance = owner.balance;
-        Person memory  person;  
+        Person memory  _person;  
 
         if (amount <= senderBalance && amount != 0){
             myBalance += amount;
@@ -78,12 +86,49 @@ contract Mono{
             mono.transfer(amount);
            
 
-            person.name = sender;
-            person.Payed = true;
-            person.payedAmount = amount;
-            registeredPerson[sender] =  person;
+            _person.name = sender;
+            _person.Payed = true;
+            _person.isVip = false;
+            _person.payedAmount = amount;
+            registeredPerson[sender] =  _person;
             emit Sent(msg.sender, mono,amount);
        
         }
     }
+    function addVip(address  _voterAddress) external onlyOwner{
+         Person memory  _person;
+        _person.name = _voterAddress;
+        _person.Payed = false;
+        _person.isVip = true;
+        _person.payedAmount=0;
+        registeredPerson[_voterAddress] = _person;
+        totalVipVoter++;
+    }
+
+    function sendToMonoPrivate(address payable mono) payable external  onlyVip{ 
+        address sender=msg.sender;
+        uint256 senderBalance = sender.balance;
+        uint256 amount = msg.value;
+        uint256 myBalance = owner.balance;
+        Person memory  _person;  
+
+        if (amount <= senderBalance && amount != 0){
+            myBalance += amount;
+            payedCost+= amount;
+            mono.transfer(amount);
+           
+
+            _person.name = sender;
+            _person.Payed = true;
+            _person.isVip = false;
+            _person.payedAmount = amount;
+            registeredPerson[sender] =  _person;
+            emit Sent(msg.sender, mono,amount);
+       
+        }else{
+            revert();            
+        }
+    }
+
+
 }
