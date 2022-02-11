@@ -9,6 +9,8 @@ contract Mono{
     uint256 public monosCost = 0 ether;
     bool public locked = true;
     uint256 public totalVipVoter = 0;
+    uint256 private deadline;
+
 
     struct Person {
         address name;
@@ -22,27 +24,34 @@ contract Mono{
     event Sent(address from, address to, uint amount);
 
     modifier onlyOwner() {
-        require(msg.sender == owner);
+        require(msg.sender == owner,"Only owner");
         _;
     }
 
     modifier onlyUnlock() {
-        require(locked == false);
+        require(locked == false,"Unlock the contract.");
         _;
     }
     
     modifier onlyOnce() {
-        require(registeredPerson[msg.sender].Payed == false);
+        require(registeredPerson[msg.sender].Payed == false,"Each address pay only once.");
         _;
     }
 
     modifier onlyVip() {
-        require(registeredPerson[msg.sender].name == address(0) && registeredPerson[msg.sender].isVip == true);
+        require(registeredPerson[msg.sender].isVip == true,"Only Vip persons can use this.");
         _;
     }
 
+    modifier notDeadline() {
+        require(block.timestamp<=deadline,"Deadline bro");
+        _;
+    }
+
+
     constructor(){
         owner =msg.sender;
+        
     }
 
     function changeLock() external onlyOwner{
@@ -57,7 +66,18 @@ contract Mono{
         return expectedCost;
     }
 
-    function transferToArtist(address payable receiver) payable external onlyOwner onlyUnlock{
+    function setDeadline(uint256 numberOfDays) external onlyOwner  {
+        deadline = block.timestamp + (numberOfDays * 100 seconds);
+    }
+
+    function getDeadline() public view returns (uint256) {
+        return deadline;
+    }
+
+
+    function transferToArtist(address payable receiver) payable external onlyOwner onlyUnlock notDeadline{
+        
+
         uint256 myBalance = owner.balance;   
         uint256 amount = msg.value;
 
@@ -73,7 +93,7 @@ contract Mono{
         }
     }
 
-    function sendToMono(address payable mono) external  payable onlyOnce{
+    function sendToMono(address payable mono) external  payable onlyOnce notDeadline{
         address sender=msg.sender;
         uint256 senderBalance = sender.balance;
         uint256 amount = msg.value;
@@ -84,7 +104,6 @@ contract Mono{
             myBalance += amount;
             payedCost+= amount;
             mono.transfer(amount);
-           
 
             _person.name = sender;
             _person.Payed = true;
@@ -95,7 +114,7 @@ contract Mono{
        
         }
     }
-    function addVip(address  _voterAddress) external onlyOwner{
+    function addVip(address  _voterAddress) external onlyOwner notDeadline{
          Person memory  _person;
         _person.name = _voterAddress;
         _person.Payed = false;
@@ -105,7 +124,7 @@ contract Mono{
         totalVipVoter++;
     }
 
-    function sendToMonoPrivate(address payable mono) payable external  onlyVip{ 
+    function sendToMonoPrivate(address payable mono) payable external  onlyVip notDeadline{ 
         address sender=msg.sender;
         uint256 senderBalance = sender.balance;
         uint256 amount = msg.value;
