@@ -1,15 +1,95 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0 <0.9.0;
 
-contract Mono{
+contract DSMath {
+    function add(uint x, uint y) internal pure returns (uint z) {
+        require((z = x + y) >= x, "ds-math-add-overflow");
+    }
+    function sub(uint x, uint y) internal pure returns (uint z) {
+        require((z = x - y) <= x, "ds-math-sub-underflow");
+    }
+    function mul(uint x, uint y) internal pure returns (uint z) {
+        require(y == 0 || (z = x * y) / y == x, "ds-math-mul-overflow");
+    }
+
+    function min(uint x, uint y) internal pure returns (uint z) {
+        return x <= y ? x : y;
+    }
+    function max(uint x, uint y) internal pure returns (uint z) {
+        return x >= y ? x : y;
+    }
+    function imin(int x, int y) internal pure returns (int z) {
+        return x <= y ? x : y;
+    }
+    function imax(int x, int y) internal pure returns (int z) {
+        return x >= y ? x : y;
+    }
+
+    uint constant WAD = 10 ** 18;
+    uint constant RAY = 10 ** 27;
+
+    //rounds to zero if x*y < WAD / 2
+    function wmul(uint x, uint y) internal pure returns (uint z) {
+        z = add(mul(x, y), WAD / 2) / WAD;
+    }
+    //rounds to zero if x*y < WAD / 2
+    function rmul(uint x, uint y) internal pure returns (uint z) {
+        z = add(mul(x, y), RAY / 2) / RAY;
+    }
+    //rounds to zero if x*y < WAD / 2
+    function wdiv(uint x, uint y) internal pure returns (uint z) {
+        z = add(mul(x, WAD), y / 2) / y;
+    }
+    //rounds to zero if x*y < RAY / 2
+    function rdiv(uint x, uint y) internal pure returns (uint z) {
+        z = add(mul(x, RAY), y / 2) / y;
+    }
+
+    // This famous algorithm is called "exponentiation by squaring"
+    // and calculates x^n with x as fixed-point and n as regular unsigned.
+    //
+    // It's O(log n), instead of O(n) for naive repeated multiplication.
+    //
+    // These facts are why it works:
+    //
+    //  If n is even, then x^n = (x^2)^(n/2).
+    //  If n is odd,  then x^n = x * x^(n-1),
+    //   and applying the equation for even x gives
+    //    x^n = x * (x^2)^((n-1) / 2).
+    //
+    //  Also, EVM division is flooring and
+    //    floor[(n-1) / 2] = floor[n / 2].
+    //
+    function rpow(uint x, uint n) internal pure returns (uint z) {
+        z = n % 2 != 0 ? x : RAY;
+
+        for (n /= 2; n != 0; n /= 2) {
+            x = rmul(x, x);
+
+            if (n % 2 != 0) {
+                z = rmul(z, x);
+            }
+        }
+    }
+}
+contract Mono is DSMath{
+
 
     address private owner;
     uint256 private expectedCost = 0.1 ether;
     uint256 public payedCost = 0 ether;
     uint256 public monosCost = 0 ether;
+    
+    //expected cost - payed cost = monos profit
+    //monos cost - payed cost = lendersProfit
+    uint256 public lendersProfit = 1 ether;
     bool public locked = true;
     uint256 public totalVipVoter = 0;
     uint256 private deadline;
+
+    enum DAOState{Created,Started ,Ended}
+
+    DAOState public daoState;
 
 
     struct Person {
@@ -22,6 +102,8 @@ contract Mono{
     mapping(address => Person) public registeredPerson;
 
     event Sent(address from, address to, uint amount);
+
+    
 
     modifier onlyOwner() {
         require(msg.sender == owner,"Only owner");
@@ -43,15 +125,34 @@ contract Mono{
         _;
     }
 
+     modifier onlyLenders() {
+        require(registeredPerson[msg.sender].name != address(0),"Only lenders can use");
+        _;
+    }
+
     modifier notDeadline() {
         require(block.timestamp<=deadline,"Deadline bro");
+        _;
+    }
+
+    modifier State(DAOState _daoState){
+        require(daoState == _daoState);
         _;
     }
 
 
     constructor(){
         owner =msg.sender;
-        
+        daoState = DAOState.Created;
+    }
+
+    function startPaying() external State(DAOState.Created) onlyOwner{
+        daoState = DAOState.Started;
+
+    }
+
+    function endPaying() external State(DAOState.Started) onlyOwner{
+        daoState = DAOState.Ended;
     }
 
     function changeLock() external onlyOwner{
@@ -76,7 +177,6 @@ contract Mono{
 
 
     function transferToArtist(address payable receiver) payable external onlyOwner onlyUnlock notDeadline{
-        
 
         uint256 myBalance = owner.balance;   
         uint256 amount = msg.value;
@@ -136,7 +236,6 @@ contract Mono{
             payedCost+= amount;
             mono.transfer(amount);
            
-
             _person.name = sender;
             _person.Payed = true;
             _person.isVip = false;
@@ -148,6 +247,45 @@ contract Mono{
             revert();            
         }
     }
+
+    function showMyProfit()  external  view returns(uint256){
+        require(registeredPerson[msg.sender].name != address(0),"Only lenders can use");
+
+        uint256 myAmount = registeredPerson[msg.sender].payedAmount;
+        //total is payed cost
+        //div(myAmount,payedCost);
+        //wdiv(myAmount,payedCost);
+        //uint256 myPay = (myAmount / payedCost);
+        uint256 myPay = wdiv(myAmount,payedCost);
+
+       // wmul(myPay,lendersProfit)
+       //uint256 myProfit = myPay * lendersProfit;
+       uint256 myProfit = wmul(myPay,lendersProfit);
+
+
+        return myProfit;
+    }
+
+     function showMyTotalProfit() onlyLenders external  view returns(uint256){
+
+        uint256 myAmount = registeredPerson[msg.sender].payedAmount;
+        //total is payed cost
+        //div(myAmount,payedCost);
+        //wdiv(myAmount,payedCost);
+        //uint256 myPay = (myAmount / payedCost);
+        uint256 myPay = wdiv(myAmount,payedCost);
+
+       // wmul(myPay,lendersProfit)
+       //uint256 myProfit = myPay * lendersProfit;
+       uint256 myProfit = wmul(myPay,lendersProfit);
+
+       uint256 myTotalProfit = add(myAmount,myProfit);
+
+        return myTotalProfit;
+    }
+
+    
+
 
 
 }
