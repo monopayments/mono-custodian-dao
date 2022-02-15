@@ -74,12 +74,12 @@ contract DSMath {
 }
 contract Mono is DSMath{
 
-
     address private owner;
     uint256 private expectedCost = 0.1 ether;
     uint256 public payedCost = 0 ether;
     uint256 public monosCost = 0 ether;
-    
+    uint256 public lendersWidthrawPay = 0 ether;
+
     //expected cost - payed cost = monos profit
     //monos cost - payed cost = lendersProfit
     uint256 public lendersProfit = 1 ether;
@@ -91,7 +91,6 @@ contract Mono is DSMath{
 
     DAOState public daoState;
 
-
     struct Person {
         address name;
         bool Payed;
@@ -100,6 +99,7 @@ contract Mono is DSMath{
     }
 
     mapping(address => Person) public registeredPerson;
+    mapping(address => uint256) public registeredLenders;
 
     event Sent(address from, address to, uint amount);
 
@@ -129,7 +129,8 @@ contract Mono is DSMath{
         require(registeredPerson[msg.sender].name != address(0),"Only lenders can use");
         _;
     }
-
+     
+    
     modifier notDeadline() {
         require(block.timestamp<=deadline,"Deadline bro");
         _;
@@ -177,7 +178,6 @@ contract Mono is DSMath{
 
 
     function transferToArtist(address payable receiver) payable external onlyOwner onlyUnlock notDeadline{
-
         uint256 myBalance = owner.balance;   
         uint256 amount = msg.value;
 
@@ -186,7 +186,7 @@ contract Mono is DSMath{
             receiver.transfer(amount);
             locked=true;
             
-            emit Sent(msg.sender, receiver,amount);
+            emit Sent(owner, receiver,amount);
             
         }else{
             revert();            
@@ -203,6 +203,7 @@ contract Mono is DSMath{
         if (amount <= senderBalance && amount != 0){
             myBalance += amount;
             payedCost+= amount;
+            registeredLenders[sender] += amount;
             mono.transfer(amount);
 
             _person.name = sender;
@@ -249,43 +250,110 @@ contract Mono is DSMath{
     }
 
     function showMyProfit()  external  view returns(uint256){
+        //uint256  myTotalProfit = 0 ether;
+        uint256  myProfit = 0 ether;
+        uint256  myAmount = 0 ether;
+        uint256  myPay = 0 ether;
+
         require(registeredPerson[msg.sender].name != address(0),"Only lenders can use");
 
-        uint256 myAmount = registeredPerson[msg.sender].payedAmount;
-        //total is payed cost
-        //div(myAmount,payedCost);
-        //wdiv(myAmount,payedCost);
-        //uint256 myPay = (myAmount / payedCost);
-        uint256 myPay = wdiv(myAmount,payedCost);
+        myAmount = registeredPerson[msg.sender].payedAmount;
+        
+        myPay = wdiv(myAmount,payedCost);
 
        // wmul(myPay,lendersProfit)
        //uint256 myProfit = myPay * lendersProfit;
-       uint256 myProfit = wmul(myPay,lendersProfit);
-
+        myProfit = wmul(myPay,lendersProfit);
 
         return myProfit;
     }
 
      function showMyTotalProfit() onlyLenders external  view returns(uint256){
+        uint256  myTotalProfit = 0 ether;
+        uint256  myProfit = 0 ether;
+        uint256  myAmount = 0 ether;
+        uint256  myPay = 0 ether;
 
-        uint256 myAmount = registeredPerson[msg.sender].payedAmount;
+        myAmount = registeredPerson[msg.sender].payedAmount;
         //total is payed cost
         //div(myAmount,payedCost);
         //wdiv(myAmount,payedCost);
         //uint256 myPay = (myAmount / payedCost);
-        uint256 myPay = wdiv(myAmount,payedCost);
+        myPay = wdiv(myAmount,payedCost);
 
        // wmul(myPay,lendersProfit)
        //uint256 myProfit = myPay * lendersProfit;
-       uint256 myProfit = wmul(myPay,lendersProfit);
+        myProfit = wmul(myPay,lendersProfit);
 
-       uint256 myTotalProfit = add(myAmount,myProfit);
+        myTotalProfit = add(myAmount,myProfit);
 
         return myTotalProfit;
     }
+    function showResultAmount() onlyLenders external  view returns(uint256){
+        uint256  myTotalProfit = 0 ether;
+        uint256  myProfit = 0 ether;
+        uint256  myAmount = 0 ether;
+        uint256  myPay = 0 ether;
+        uint256  result = 0 ether;
 
+        myAmount = registeredPerson[msg.sender].payedAmount;
+        //total is payed cost
+        //div(myAmount,payedCost);
+        //wdiv(myAmount,payedCost);
+        //uint256 myPay = (myAmount / payedCost);
+        myPay = wdiv(myAmount,payedCost);
+
+       // wmul(myPay,lendersProfit)
+       //uint256 myProfit = myPay * lendersProfit;
+        myProfit = wmul(myPay,lendersProfit);
+
+        myTotalProfit = add(myAmount,myProfit);
+        result = sub(myTotalProfit,lendersWidthrawPay);
+
+        return result;
+    }
+
+    //kisi bastiginda kendi payiini owner'in hesabindan almali
+    function shareTheProfitWithLenders(address payable receiver) payable external onlyOwner  notDeadline{
+        address sender=msg.sender;
+        uint256 amount = msg.value;
+        uint256 ownerBalance = owner.balance;
+
+        uint256  myTotalProfit = 0 ether;
+        uint256  myProfit = 0 ether;
+        uint256  myAmount = 0 ether;
+        uint256  myPay = 0 ether;
+        
+        myAmount = registeredPerson[sender].payedAmount;
+        myPay = wdiv(myAmount,payedCost);
+        myProfit = wmul(myPay,lendersProfit);
+        myTotalProfit = add(myAmount,myProfit);
+
+        //uint256 senderBalance = sender.balance;
+       
+        //uint256 receiverBalance = receiver.balance;
+        require(registeredPerson[receiver].name != address(0),"no user in this registered address");
+        require(sender != address(0), "Cannot transfer from the zero address");
+        require(receiver != address(0), "Cannot transfer to the zero address");
+        require(ownerBalance >= amount, "Transfer amount exceeds balance");
+        require(lendersWidthrawPay <= myTotalProfit, "You cant transfer more than your profit");
     
+        sendValue(receiver,amount);
+        lendersWidthrawPay += amount;
+        emit Sent(owner,receiver,amount);
+    }
 
+    function sendValue(address payable recipient, uint amount) internal {
+        require(recipient.balance >= amount, "Address: insufficient balance");
+
+        (bool success, ) = recipient.call{value: amount}("");
+        require(success, "Address: unable to send value, recipient may have reverted");
+    }
+    function balance(address x) public view returns(uint accountBalance)
+    {
+        accountBalance = x.balance;
+    }
+    
 
 
 }
