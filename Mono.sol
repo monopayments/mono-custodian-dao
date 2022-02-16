@@ -95,6 +95,7 @@ contract Mono is DSMath{
         address name;
         bool Payed;
         uint256 payedAmount;
+        uint256 lenderReturnPayment;
         bool isVip;
     }
 
@@ -203,7 +204,6 @@ contract Mono is DSMath{
         if (amount <= senderBalance && amount != 0){
             myBalance += amount;
             payedCost+= amount;
-            registeredLenders[sender] += amount;
             mono.transfer(amount);
 
             _person.name = sender;
@@ -314,17 +314,24 @@ contract Mono is DSMath{
     }
 
     //kisi bastiginda kendi payiini owner'in hesabindan almali
-    function shareTheProfitWithLenders(address payable receiver) payable external onlyOwner  notDeadline{
-        address sender=msg.sender;
+    function shareTheProfitWithLenders(address payable receiver) payable external onlyOwner notDeadline{
         uint256 amount = msg.value;
         uint256 ownerBalance = owner.balance;
+
+        require(registeredPerson[receiver].name != address(0),"no user in this registered address");
+        require(owner != address(0), "Cannot transfer from the zero address");
+        require(receiver != address(0), "Cannot transfer to the zero address");
+        require(ownerBalance >= amount, "Transfer amount exceeds balance");
+        
+
+        //address ownerAd=msg.sender;
 
         uint256  myTotalProfit = 0 ether;
         uint256  myProfit = 0 ether;
         uint256  myAmount = 0 ether;
         uint256  myPay = 0 ether;
         
-        myAmount = registeredPerson[sender].payedAmount;
+        myAmount = registeredPerson[receiver].payedAmount;
         myPay = wdiv(myAmount,payedCost);
         myProfit = wmul(myPay,lendersProfit);
         myTotalProfit = add(myAmount,myProfit);
@@ -332,18 +339,19 @@ contract Mono is DSMath{
         //uint256 senderBalance = sender.balance;
        
         //uint256 receiverBalance = receiver.balance;
-        require(registeredPerson[receiver].name != address(0),"no user in this registered address");
-        require(sender != address(0), "Cannot transfer from the zero address");
-        require(receiver != address(0), "Cannot transfer to the zero address");
-        require(ownerBalance >= amount, "Transfer amount exceeds balance");
-        require(lendersWidthrawPay <= myTotalProfit, "You cant transfer more than your profit");
-    
+        require(amount == myTotalProfit, "Please enter your prfit correctly");
+        require(lendersWidthrawPay < payedCost, "Users profit must be less than total amount.");
+        
         sendValue(receiver,amount);
         lendersWidthrawPay += amount;
+
+
+        
         emit Sent(owner,receiver,amount);
     }
 
-    function sendValue(address payable recipient, uint amount) internal {
+
+    function sendValue(address payable recipient, uint256 amount) internal {
         require(recipient.balance >= amount, "Address: insufficient balance");
 
         (bool success, ) = recipient.call{value: amount}("");
@@ -354,6 +362,4 @@ contract Mono is DSMath{
         accountBalance = x.balance;
     }
     
-
-
 }
