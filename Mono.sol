@@ -345,7 +345,6 @@ contract Mono is DSMath{
         sendValue(receiver,amount);
         lendersWidthrawPay += amount;
 
-
         
         emit Sent(owner,receiver,amount);
     }
