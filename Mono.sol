@@ -83,9 +83,10 @@ contract Mono is DSMath{
     uint256 public lendersProfit = 1 ether;
     bool public locked = true;
     uint256 public totalVipVoter = 0;
-    uint256 private deadline;
 
+    uint256 private deadline;
     uint256 public installmentDeadline;
+
     uint256 public installmenMounth=10;
 
     //10 ayda 1 ether gonderilmeli
@@ -95,7 +96,6 @@ contract Mono is DSMath{
 
     //expected cost - payed cost = monos profit
     //monos cost - payed cost = lendersProfit
-   
 
     enum DAOState{Created,Started ,Ended}
 
@@ -113,7 +113,6 @@ contract Mono is DSMath{
     mapping(address => uint256) public registeredLenders;
 
     event Sent(address from, address to, uint256 amount);
-
     event NewProfit(uint256 from,  uint256 to);
 
 
@@ -142,7 +141,6 @@ contract Mono is DSMath{
         _;
     }
      
-    
     modifier notDeadline() {
         require(block.timestamp<=deadline,"Deadline bro");
         _;
@@ -151,13 +149,13 @@ contract Mono is DSMath{
     modifier notInstallmentDeadline() {
         require(block.timestamp<=installmentDeadline,"Installment Deadline bro");
         _;
+        installmentAmountForOne = installmentAmountForOne + 1 ether;
     }
 
     modifier State(DAOState _daoState){
         require(daoState == _daoState);
         _;
     }
-
 
     constructor(){
         owner =msg.sender;
@@ -166,7 +164,6 @@ contract Mono is DSMath{
 
     function startPaying() external State(DAOState.Created) onlyOwner{
         daoState = DAOState.Started;
-
     }
 
     function endPaying() external State(DAOState.Started) onlyOwner{
@@ -185,6 +182,16 @@ contract Mono is DSMath{
         return expectedCost;
     }
 
+    function setlendersProfit(uint256 x) external onlyOwner  {
+        uint256 oldProfit=lendersProfit;
+        lendersProfit = x ;
+        emit NewProfit(oldProfit,lendersProfit);
+    }
+
+    function getlendersProfit() public view returns (uint256) {
+        return lendersProfit;
+    }
+
     function setDeadline(uint256 numberOfDays) external onlyOwner  {
         deadline = block.timestamp + (numberOfDays * 100 seconds);
     }
@@ -200,7 +207,6 @@ contract Mono is DSMath{
     function getInstallmentDeadline() public view returns (uint256) {
         return installmentDeadline;
     }
-
 
     function transferToArtist(address payable receiver) payable external onlyOwner onlyUnlock notDeadline{
         uint256 myBalance = owner.balance;   
@@ -230,6 +236,7 @@ contract Mono is DSMath{
             //payedCost+= amount;
             //mono.transfer(amount);
             sendValue(payable(owner),amount);
+            payedCost +=amount;
 
             _person.name = sender;
             _person.Payed = true;
@@ -240,6 +247,7 @@ contract Mono is DSMath{
        
         }
     }
+
     function addVip(address  _voterAddress) external onlyOwner  notDeadline{
          Person memory  _person;
         _person.name = _voterAddress;
@@ -272,7 +280,6 @@ contract Mono is DSMath{
     }
 
     function showMyProfit()  external  view returns(uint256){
-        //uint256  myTotalProfit = 0 ether;
         uint256  myProfit = 0 ether;
         uint256  myAmount = 0 ether;
         uint256  myPay = 0 ether;
@@ -283,8 +290,6 @@ contract Mono is DSMath{
         
         myPay = wdiv(myAmount,payedCost);
 
-       // wmul(myPay,lendersProfit)
-       //uint256 myProfit = myPay * lendersProfit;
         myProfit = wmul(myPay,lendersProfit);
 
         return myProfit;
@@ -297,20 +302,16 @@ contract Mono is DSMath{
         uint256  myPay = 0 ether;
 
         myAmount = registeredPerson[msg.sender].payedAmount;
-        //total is payed cost
-        //div(myAmount,payedCost);
-        //wdiv(myAmount,payedCost);
-        //uint256 myPay = (myAmount / payedCost);
+       
         myPay = wdiv(myAmount,payedCost);
 
-       // wmul(myPay,lendersProfit)
-       //uint256 myProfit = myPay * lendersProfit;
         myProfit = wmul(myPay,lendersProfit);
 
         myTotalProfit = add(myAmount,myProfit);
 
         return myTotalProfit;
     }
+
     function showResultAmount() onlyLenders external  view returns(uint256){
         uint256  myTotalProfit = 0 ether;
         uint256  myProfit = 0 ether;
@@ -319,14 +320,9 @@ contract Mono is DSMath{
         uint256  result = 0 ether;
 
         myAmount = registeredPerson[msg.sender].payedAmount;
-        //total is payed cost
-        //div(myAmount,payedCost);
-        //wdiv(myAmount,payedCost);
-        //uint256 myPay = (myAmount / payedCost);
+
         myPay = wdiv(myAmount,payedCost);
 
-       // wmul(myPay,lendersProfit)
-       //uint256 myProfit = myPay * lendersProfit;
         myProfit = wmul(myPay,lendersProfit);
 
         myTotalProfit = add(myAmount,myProfit);
@@ -335,7 +331,6 @@ contract Mono is DSMath{
         return result;
     }
 
-    //kisi bastiginda kendi payiini owner'in hesabindan almali
     function shareTheProfitWithLenders(address payable receiver) payable external onlyOwner notDeadline{
         uint256 amount = msg.value;
         uint256 ownerBalance = owner.balance;
@@ -344,9 +339,6 @@ contract Mono is DSMath{
         require(owner != address(0), "Cannot transfer from the zero address");
         require(receiver != address(0), "Cannot transfer to the zero address");
         require(ownerBalance >= amount, "Transfer amount exceeds balance");
-        
-
-        //address ownerAd=msg.sender;
 
         uint256  myTotalProfit = 0 ether;
         uint256  myProfit = 0 ether;
@@ -358,9 +350,6 @@ contract Mono is DSMath{
         myProfit = wmul(myPay,lendersProfit);
         myTotalProfit = add(myAmount,myProfit);
 
-        //uint256 senderBalance = sender.balance;
-       
-        //uint256 receiverBalance = receiver.balance;
         require(amount == myTotalProfit, "Please enter your prfit correctly");
         require(lendersWidthrawPay <= payedCost, "Users profit must be less than total amount.");
 
@@ -369,13 +358,13 @@ contract Mono is DSMath{
         emit Sent(owner,receiver,amount);
     }
 
-
     function sendValue(address payable recipient, uint256 amount) internal {
         require(recipient.balance >= amount, "Address: insufficient balance");
 
         (bool success, ) = recipient.call{value: amount}("");
         require(success, "Address: unable to send value, recipient may have reverted");
     }
+
     function balance(address x) public view returns(uint accountBalance)
     {
         accountBalance = x.balance;
@@ -386,8 +375,7 @@ contract Mono is DSMath{
         require(amount == installmentAmountForOne, "Please enter your installment amount for one correctly");
      
         sendValue(payable(owner),amount);
-        
+        installmentAmount -=amount;
     }
 
-    
 }
