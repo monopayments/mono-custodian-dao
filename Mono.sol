@@ -80,12 +80,22 @@ contract Mono is DSMath{
     uint256 public monosCost = 0 ether;
     uint256 public lendersWidthrawPay = 0 ether;
 
-    //expected cost - payed cost = monos profit
-    //monos cost - payed cost = lendersProfit
     uint256 public lendersProfit = 1 ether;
     bool public locked = true;
     uint256 public totalVipVoter = 0;
     uint256 private deadline;
+
+    uint256 public installmentDeadline;
+    uint256 public installmenMounth=10;
+
+    //10 ayda 1 ether gonderilmeli
+
+    uint256 public installmentAmount = 10 ether;
+    uint256 public installmentAmountForOne = (installmentAmount/installmenMounth);
+
+    //expected cost - payed cost = monos profit
+    //monos cost - payed cost = lendersProfit
+   
 
     enum DAOState{Created,Started ,Ended}
 
@@ -102,9 +112,10 @@ contract Mono is DSMath{
     mapping(address => Person) public registeredPerson;
     mapping(address => uint256) public registeredLenders;
 
-    event Sent(address from, address to, uint amount);
+    event Sent(address from, address to, uint256 amount);
 
-    
+    event NewProfit(uint256 from,  uint256 to);
+
 
     modifier onlyOwner() {
         require(msg.sender == owner,"Only owner");
@@ -134,6 +145,11 @@ contract Mono is DSMath{
     
     modifier notDeadline() {
         require(block.timestamp<=deadline,"Deadline bro");
+        _;
+    }
+
+    modifier notInstallmentDeadline() {
+        require(block.timestamp<=installmentDeadline,"Installment Deadline bro");
         _;
     }
 
@@ -177,6 +193,14 @@ contract Mono is DSMath{
         return deadline;
     }
 
+    function setInstallmentDeadline(uint256 numberOfDays) external onlyOwner  {
+        installmentDeadline = block.timestamp + (numberOfDays * 100 seconds);
+    }
+
+    function getInstallmentDeadline() public view returns (uint256) {
+        return installmentDeadline;
+    }
+
 
     function transferToArtist(address payable receiver) payable external onlyOwner onlyUnlock notDeadline{
         uint256 myBalance = owner.balance;   
@@ -194,28 +218,29 @@ contract Mono is DSMath{
         }
     }
 
-    function sendToMono(address payable mono) external  payable onlyOnce notDeadline{
+    function sendToMono() external  payable onlyOnce notDeadline{
         address sender=msg.sender;
         uint256 senderBalance = sender.balance;
         uint256 amount = msg.value;
-        uint256 myBalance = owner.balance;
+        //uint256 myBalance = owner.balance;
         Person memory  _person;  
 
         if (amount <= senderBalance && amount != 0){
-            myBalance += amount;
-            payedCost+= amount;
-            mono.transfer(amount);
+            //myBalance += amount;
+            //payedCost+= amount;
+            //mono.transfer(amount);
+            sendValue(payable(owner),amount);
 
             _person.name = sender;
             _person.Payed = true;
             _person.isVip = false;
             _person.payedAmount = amount;
-            registeredPerson[sender] =  _person;
-            emit Sent(msg.sender, mono,amount);
+            registeredPerson[sender] = _person;
+            emit Sent(msg.sender, payable(owner),amount);
        
         }
     }
-    function addVip(address  _voterAddress) external onlyOwner notDeadline{
+    function addVip(address  _voterAddress) external onlyOwner  notDeadline{
          Person memory  _person;
         _person.name = _voterAddress;
         _person.Payed = false;
@@ -225,24 +250,21 @@ contract Mono is DSMath{
         totalVipVoter++;
     }
 
-    function sendToMonoPrivate(address payable mono) payable external  onlyVip notDeadline{ 
+    function sendToMonoPrivate() payable external  onlyVip notDeadline{ 
         address sender=msg.sender;
         uint256 senderBalance = sender.balance;
         uint256 amount = msg.value;
-        uint256 myBalance = owner.balance;
+        //uint256 myBalance = owner.balance;
         Person memory  _person;  
 
         if (amount <= senderBalance && amount != 0){
-            myBalance += amount;
-            payedCost+= amount;
-            mono.transfer(amount);
+            sendValue(payable(owner),amount);
            
             _person.name = sender;
             _person.Payed = true;
-            _person.isVip = false;
             _person.payedAmount = amount;
             registeredPerson[sender] =  _person;
-            emit Sent(msg.sender, mono,amount);
+            emit Sent(msg.sender, payable(owner),amount);
        
         }else{
             revert();            
@@ -340,12 +362,10 @@ contract Mono is DSMath{
        
         //uint256 receiverBalance = receiver.balance;
         require(amount == myTotalProfit, "Please enter your prfit correctly");
-        require(lendersWidthrawPay < payedCost, "Users profit must be less than total amount.");
-        
+        require(lendersWidthrawPay <= payedCost, "Users profit must be less than total amount.");
+
         sendValue(receiver,amount);
         lendersWidthrawPay += amount;
-
-        
         emit Sent(owner,receiver,amount);
     }
 
@@ -360,5 +380,14 @@ contract Mono is DSMath{
     {
         accountBalance = x.balance;
     }
+
+    function installmentMono() payable external {
+        uint256 amount = msg.value;
+        require(amount == installmentAmountForOne, "Please enter your installment amount for one correctly");
+     
+        sendValue(payable(owner),amount);
+        
+    }
+
     
 }
