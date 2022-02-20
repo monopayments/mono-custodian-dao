@@ -381,7 +381,7 @@ contract Mono is DSMath{
         accountBalance = x.balance;
     }
 
-    function installmentMono() payable external {
+    function installmentMono() payable external notInstallmentDeadline{
         uint256 amount = msg.value;
         require(amount == installmentAmountForOne, "Please enter your installment amount for one correctly");
      
