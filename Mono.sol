@@ -377,5 +377,4 @@ contract Mono is DSMath{
         sendValue(payable(owner),amount);
         installmentAmount -=amount;
     }
-
 }
