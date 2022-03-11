@@ -1,5 +1,9 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0 <0.9.0;
+
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
+
 
 contract DSMath {
     function add(uint x, uint y) internal pure returns (uint z) {
@@ -72,9 +76,163 @@ contract DSMath {
         }
     }
 }
-contract Mono is DSMath{
+ 
 
-    address private owner;
+interface IERC165 {
+    /**
+     * @dev Returns true if this contract implements the interface defined by
+     * `interfaceId`. See the corresponding
+     * https://eips.ethereum.org/EIPS/eip-165#how-interfaces-are-identified[EIP section]
+     * to learn more about how these ids are created.
+     *
+     * This function call must use less than 30 000 gas.
+     */
+    function supportsInterface(bytes4 interfaceId) external view returns (bool);
+}
+
+interface IERC721 is IERC165 {
+    /**
+     * @dev Emitted when `tokenId` token is transferred from `from` to `to`.
+     */
+    event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
+
+    /**
+     * @dev Emitted when `owner` enables `approved` to manage the `tokenId` token.
+     */
+    event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);
+
+    /**
+     * @dev Emitted when `owner` enables or disables (`approved`) `operator` to manage all of its assets.
+     */
+    event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
+
+    /**
+     * @dev Returns the number of tokens in ``owner``'s account.
+     */
+    function balanceOf(address owner) external view returns (uint256 balance);
+
+    /**
+     * @dev Returns the owner of the `tokenId` token.
+     *
+     * Requirements:
+     *
+     * - `tokenId` must exist.
+     */
+    function ownerOf(uint256 tokenId) external view returns (address owner);
+
+    /**
+     * @dev Safely transfers `tokenId` token from `from` to `to`, checking first that contract recipients
+     * are aware of the ERC721 protocol to prevent tokens from being forever locked.
+     *
+     * Requirements:
+     *
+     * - `from` cannot be the zero address.
+     * - `to` cannot be the zero address.
+     * - `tokenId` token must exist and be owned by `from`.
+     * - If the caller is not `from`, it must be have been allowed to move this token by either {approve} or {setApprovalForAll}.
+     * - If `to` refers to a smart contract, it must implement {IERC721Receiver-onERC721Received}, which is called upon a safe transfer.
+     *
+     * Emits a {Transfer} event.
+     */
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 tokenId
+    ) external;
+
+    /**
+     * @dev Transfers `tokenId` token from `from` to `to`.
+     *
+     * WARNING: Usage of this method is discouraged, use {safeTransferFrom} whenever possible.
+     *
+     * Requirements:
+     *
+     * - `from` cannot be the zero address.
+     * - `to` cannot be the zero address.
+     * - `tokenId` token must be owned by `from`.
+     * - If the caller is not `from`, it must be approved to move this token by either {approve} or {setApprovalForAll}.
+     *
+     * Emits a {Transfer} event.
+     */
+    function transferFrom(
+        address from,
+        address to,
+        uint256 tokenId
+    ) external;
+
+    /**
+     * @dev Gives permission to `to` to transfer `tokenId` token to another account.
+     * The approval is cleared when the token is transferred.
+     *
+     * Only a single account can be approved at a time, so approving the zero address clears previous approvals.
+     *
+     * Requirements:
+     *
+     * - The caller must own the token or be an approved operator.
+     * - `tokenId` must exist.
+     *
+     * Emits an {Approval} event.
+     */
+    function approve(address to, uint256 tokenId) external;
+
+    /**
+     * @dev Returns the account approved for `tokenId` token.
+     *
+     * Requirements:
+     *
+     * - `tokenId` must exist.
+     */
+    function getApproved(uint256 tokenId) external view returns (address operator);
+
+    /**
+     * @dev Approve or remove `operator` as an operator for the caller.
+     * Operators can call {transferFrom} or {safeTransferFrom} for any token owned by the caller.
+     *
+     * Requirements:
+     *
+     * - The `operator` cannot be the caller.
+     *
+     * Emits an {ApprovalForAll} event.
+     */
+    function setApprovalForAll(address operator, bool _approved) external;
+
+    /**
+     * @dev Returns if the `operator` is allowed to manage all of the assets of `owner`.
+     *
+     * See {setApprovalForAll}
+     */
+    function isApprovedForAll(address owner, address operator) external view returns (bool);
+
+    /**
+     * @dev Safely transfers `tokenId` token from `from` to `to`.
+     *
+     * Requirements:
+     *
+     * - `from` cannot be the zero address.
+     * - `to` cannot be the zero address.
+     * - `tokenId` token must exist and be owned by `from`.
+     * - If the caller is not `from`, it must be approved to move this token by either {approve} or {setApprovalForAll}.
+     * - If `to` refers to a smart contract, it must implement {IERC721Receiver-onERC721Received}, which is called upon a safe transfer.
+     *
+     * Emits a {Transfer} event.
+     */
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 tokenId,
+        bytes calldata data
+    ) external;
+}
+
+contract Mono is DSMath,ReentrancyGuard{
+
+    using Counters for Counters.Counter;
+    Counters.Counter private _itemIds;
+    Counters.Counter private _itemsSold;
+
+    address public owner;
+    address public admin;
+
     uint256 private expectedCost = 0.1 ether;
     uint256 public payedCost = 0 ether;
     uint256 public monosCost = 0 ether;
@@ -83,6 +241,8 @@ contract Mono is DSMath{
     uint256 public lendersProfit = 1 ether;
     bool public locked = true;
     uint256 public totalVipVoter = 0;
+
+    uint256 public nftCase = 0;
 
     uint256 private deadline;
     uint256 public installmentDeadline;
@@ -101,6 +261,18 @@ contract Mono is DSMath{
 
     DAOState public daoState;
 
+    struct Vote {
+        address voterAddress;
+        bool result;
+        uint MarketItemId;
+    }
+
+    struct Voter {
+        address voterAddress;
+        bool isVoted;
+        uint MarketItemId;
+    }
+
     struct Person {
         address name;
         bool Payed;
@@ -109,15 +281,36 @@ contract Mono is DSMath{
         bool isVip;
     }
 
+    struct MarketItem {
+        uint itemId;
+        address nftContract;
+        uint256 tokenId;
+        address payable seller;
+        address payable owner;
+        uint256 price;
+        bool sold;
+        uint countResultTrue;
+    }
+
+    mapping(uint256 => MarketItem) private idToMarketItem;
+
     mapping(address => Person) public registeredPerson;
+
+    mapping(address => Voter) public registeredVoter;
+
     mapping(address => uint256) public registeredLenders;
 
     event Sent(address from, address to, uint256 amount);
     event NewProfit(uint256 from,  uint256 to);
+    event MarketItemCreated (uint indexed itemId,address indexed nftContract,uint256 indexed tokenId,address seller,address owner,uint256 price,bool sold);
 
 
     modifier onlyOwner() {
         require(msg.sender == owner,"Only owner");
+        _;
+    }
+    modifier onlyAdmin() {
+        require(msg.sender == admin,"Only Admin");
         _;
     }
 
@@ -130,6 +323,9 @@ contract Mono is DSMath{
         require(registeredPerson[msg.sender].Payed == false,"Each address pay only once.");
         _;
     }
+
+    
+
 
     modifier onlyVip() {
         require(registeredPerson[msg.sender].isVip == true,"Only Vip persons can use this.");
@@ -158,7 +354,7 @@ contract Mono is DSMath{
     }
 
     constructor(){
-        owner =msg.sender;
+        admin=msg.sender;
         daoState = DAOState.Created;
     }
 
@@ -208,21 +404,74 @@ contract Mono is DSMath{
         return installmentDeadline;
     }
 
-    function transferToArtist(address payable receiver) payable external onlyOwner onlyUnlock notDeadline{
-        uint256 myBalance = owner.balance;   
-        uint256 amount = msg.value;
 
-        if (expectedCost <= payedCost+0.1 ether && amount == expectedCost){
-            myBalance -= amount;
-            receiver.transfer(amount);
-            locked=true;
-            
-            emit Sent(owner, receiver,amount);
-            
-        }else{
-            revert();            
-        }
+    function sendNFTtoMono(address nftContract,uint256 tokenId,uint256 price) public payable nonReentrant {
+
+        require(price > 0, "Price must be at least 1 wei");
+        require(msg.value == expectedCost, "Price must be equal to listing price");
+        owner =msg.sender;
+
+        _itemIds.increment();
+        uint256 itemId = _itemIds.current();
+  
+        idToMarketItem[itemId] =  MarketItem(itemId,nftContract,tokenId,
+        payable(msg.sender),//sender
+        payable(address(0)),//mono
+        price,
+        false,
+        0
+        );
+
+        IERC721(nftContract).transferFrom(msg.sender, address(this), tokenId);
+    
+        nftCase++;
+
+        emit MarketItemCreated(
+            itemId,
+            nftContract,
+            tokenId,
+            msg.sender,//sender
+            address(0),//mono
+            price,
+            false
+        );
+    
     }
+
+  /* Start the sale of a monos item */
+  /* Transfers ownership */
+  function transferNftToArtist(address nftContract,uint256 itemId) public payable nonReentrant notDeadline{
+    uint price = idToMarketItem[itemId].price;
+    uint tokenId = idToMarketItem[itemId].tokenId;
+    require(msg.value == price, "Please submit the asking price in order to complete the purchase");
+
+    require(idToMarketItem[itemId].countResultTrue >= 2,"First consensius decide");
+
+    idToMarketItem[itemId].seller.transfer(msg.value);
+    IERC721(nftContract).transferFrom(address(this), msg.sender, tokenId);
+    idToMarketItem[itemId].owner = payable(msg.sender);
+    idToMarketItem[itemId].sold = true;
+    _itemsSold.increment();
+    payable(owner).transfer(expectedCost);
+  }
+
+  /* Returns all unsold mono items */
+  function fetchMarketItems() public view returns (MarketItem[] memory) {
+    uint itemCount = _itemIds.current();
+    uint unsoldItemCount = _itemIds.current() - _itemsSold.current();
+    uint currentIndex = 0;
+
+    MarketItem[] memory items = new MarketItem[](unsoldItemCount);
+    for (uint i = 0; i < itemCount; i++) {
+      if (idToMarketItem[i + 1].owner == address(0)) {
+        uint currentId = i + 1;
+        MarketItem storage currentItem = idToMarketItem[currentId];
+        items[currentIndex] = currentItem;
+        currentIndex += 1;
+      }
+    }
+    return items;
+  }
 
     function sendToMono() external  payable onlyOnce notDeadline{
         address sender=msg.sender;
@@ -249,13 +498,40 @@ contract Mono is DSMath{
     }
 
     function addVip(address  _voterAddress) external onlyOwner  notDeadline{
-         Person memory  _person;
+
+        Person memory  _person;
         _person.name = _voterAddress;
         _person.Payed = false;
         _person.isVip = true;
         _person.payedAmount=0;
         registeredPerson[_voterAddress] = _person;
         totalVipVoter++;
+    }
+
+
+   function voteForAdmins(uint _itemId,bool _choise) public onlyAdmin notDeadline returns(bool result){
+        bool voted = false;
+
+        if(!registeredVoter[msg.sender].isVoted && registeredVoter[msg.sender].MarketItemId == _itemId ){
+            registeredVoter[msg.sender].isVoted = true;
+            
+             Voter memory _voter = registeredVoter[msg.sender];
+             registeredVoter[msg.sender]=_voter;
+
+            if(_choise==true){
+                idToMarketItem[_itemId].countResultTrue++;
+            }
+            voted=true;
+        }
+        return voted;
+    }
+
+    function addVoterForOneNFT(uint8 _itemId,address _newAdmin) public onlyAdmin notDeadline{
+        Voter memory _voter;
+        _voter.voterAddress = _newAdmin;
+        _voter.isVoted = false;
+        _voter.MarketItemId = _itemId;
+        registeredVoter[_newAdmin] = _voter;
     }
 
     function sendToMonoPrivate() payable external  onlyVip notDeadline{ 
@@ -365,8 +641,7 @@ contract Mono is DSMath{
         require(success, "Address: unable to send value, recipient may have reverted");
     }
 
-    function balance(address x) public view returns(uint accountBalance)
-    {
+    function balance(address x) public view returns(uint accountBalance){
         accountBalance = x.balance;
     }
 
@@ -377,4 +652,6 @@ contract Mono is DSMath{
         sendValue(payable(owner),amount);
         installmentAmount -=amount;
     }
+
 }
+
