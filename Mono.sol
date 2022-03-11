@@ -233,16 +233,19 @@ contract Mono is DSMath,ReentrancyGuard{
     address public owner;
     address public admin;
 
-    uint256 private expectedCost = 0.1 ether;
+    uint256 private expectedCost = 1 ether;
     uint256 public payedCost = 0 ether;
     uint256 public monosCost = 0 ether;
     uint256 public lendersWidthrawPay = 0 ether;
 
     uint256 public lendersProfit = 1 ether;
     bool public locked = true;
+    
     uint256 public totalVipVoter = 0;
 
     uint256 public nftCase = 0;
+    uint256 public userID = 1;
+
 
     uint256 private deadline;
     uint256 public installmentDeadline;
@@ -279,6 +282,7 @@ contract Mono is DSMath,ReentrancyGuard{
         uint256 payedAmount;
         uint256 lenderReturnPayment;
         bool isVip;
+        uint _itemId;
     }
 
     struct MarketItem {
@@ -292,9 +296,15 @@ contract Mono is DSMath,ReentrancyGuard{
         uint countResultTrue;
     }
 
-    mapping(uint256 => MarketItem) private idToMarketItem;
+    Person[] public usersArray;
+
+    mapping(uint256 => MarketItem) public idToMarketItem;//make private
 
     mapping(address => Person) public registeredPerson;
+
+    mapping(uint => Person) public registeredPersonNumber;
+
+    mapping(uint => Person[]) public users;
 
     mapping(address => Voter) public registeredVoter;
 
@@ -306,7 +316,7 @@ contract Mono is DSMath,ReentrancyGuard{
 
 
     modifier onlyOwner() {
-        require(msg.sender == owner,"Only owner");
+        require(msg.sender == owner || msg.sender == admin,"Only owner or admin");
         _;
     }
     modifier onlyAdmin() {
@@ -323,9 +333,6 @@ contract Mono is DSMath,ReentrancyGuard{
         require(registeredPerson[msg.sender].Payed == false,"Each address pay only once.");
         _;
     }
-
-    
-
 
     modifier onlyVip() {
         require(registeredPerson[msg.sender].isVip == true,"Only Vip persons can use this.");
@@ -405,10 +412,10 @@ contract Mono is DSMath,ReentrancyGuard{
     }
 
 
-    function sendNFTtoMono(address nftContract,uint256 tokenId,uint256 price) public payable nonReentrant {
+    function sendNFTtoMono(address nftContract,uint256 tokenId,uint256 expectedPrice) public payable nonReentrant {
 
-        require(price > 0, "Price must be at least 1 wei");
-        require(msg.value == expectedCost, "Price must be equal to listing price");
+        require(expectedPrice > 0, "Price must be at least 1 wei");
+        require(msg.value == expectedPrice, "Price must be equal to listing price");
         owner =msg.sender;
 
         _itemIds.increment();
@@ -417,14 +424,12 @@ contract Mono is DSMath,ReentrancyGuard{
         idToMarketItem[itemId] =  MarketItem(itemId,nftContract,tokenId,
         payable(msg.sender),//sender
         payable(address(0)),//mono
-        price,
+        expectedPrice,
         false,
         0
         );
 
         IERC721(nftContract).transferFrom(msg.sender, address(this), tokenId);
-    
-        nftCase++;
 
         emit MarketItemCreated(
             itemId,
@@ -432,7 +437,7 @@ contract Mono is DSMath,ReentrancyGuard{
             tokenId,
             msg.sender,//sender
             address(0),//mono
-            price,
+            expectedPrice,
             false
         );
     
@@ -473,32 +478,35 @@ contract Mono is DSMath,ReentrancyGuard{
     return items;
   }
 
-    function sendToMono() external  payable onlyOnce notDeadline{
-        address sender=msg.sender;
-        uint256 senderBalance = sender.balance;
+    function sendToMono(uint _itemId) external  payable notDeadline returns(uint256) { 
+        //simdilik kullanmiyorum
+        //uint itemId = idToMarketItem[_itemId].itemId;
+
+        uint256 senderBalance = msg.sender.balance;
         uint256 amount = msg.value;
         //uint256 myBalance = owner.balance;
-        Person memory  _person;  
-
+        
+        //DAO memory _DAO = registeredDAO[id];
+        //_DAO.expectedCountTrue = newTrueAmount;
+        //registeredDAO[id]=_DAO;
+        Person memory _person = registeredPersonNumber[userID];
+       
         if (amount <= senderBalance && amount != 0){
-            //myBalance += amount;
-            //payedCost+= amount;
-            //mono.transfer(amount);
-            sendValue(payable(owner),amount);
-            payedCost +=amount;
 
-            _person.name = sender;
+            _person.name = msg.sender;
             _person.Payed = true;
             _person.isVip = false;
             _person.payedAmount = amount;
-            registeredPerson[sender] = _person;
+            _person._itemId = _itemId;
+            registeredPersonNumber[userID] = _person;
+            userID++;
             emit Sent(msg.sender, payable(owner),amount);
-       
         }
+        return userID;
+       
     }
 
     function addVip(address  _voterAddress) external onlyOwner  notDeadline{
-
         Person memory  _person;
         _person.name = _voterAddress;
         _person.Payed = false;
@@ -508,10 +516,8 @@ contract Mono is DSMath,ReentrancyGuard{
         totalVipVoter++;
     }
 
-
    function voteForAdmins(uint _itemId,bool _choise) public onlyAdmin notDeadline returns(bool result){
-        bool voted = false;
-
+       bool voted = false;
         if(!registeredVoter[msg.sender].isVoted && registeredVoter[msg.sender].MarketItemId == _itemId ){
             registeredVoter[msg.sender].isVoted = true;
             
@@ -525,6 +531,7 @@ contract Mono is DSMath,ReentrancyGuard{
         }
         return voted;
     }
+
 
     function addVoterForOneNFT(uint8 _itemId,address _newAdmin) public onlyAdmin notDeadline{
         Voter memory _voter;
@@ -653,5 +660,5 @@ contract Mono is DSMath,ReentrancyGuard{
         installmentAmount -=amount;
     }
 
-}
 
+}
