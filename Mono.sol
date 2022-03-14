@@ -247,15 +247,15 @@ contract Mono is DSMath,ReentrancyGuard{
 
     uint256 public userID = 1;
 
-    uint256 private deadline;
-    uint256 public installmentDeadline;
+    // uint256 private deadline;
+    // uint256 public installmentDeadline;
 
-    uint256 public installmenMounth=10;
+    // uint256 public installmenMounth=10;
 
-    //10 ayda 1 ether gonderilmeli
+    // //10 ayda 1 ether gonderilmeli
 
-    uint256 public installmentAmount = 10 ether;
-    uint256 public installmentAmountForOne = (installmentAmount/installmenMounth);
+    // uint256 public installmentAmount = 10 ether;
+    // uint256 public installmentAmountForOne = (installmentAmount/installmenMounth);
 
     //expected cost - payed cost = monos profit
     //monos cost - payed cost = lendersProfit
@@ -295,8 +295,10 @@ contract Mono is DSMath,ReentrancyGuard{
         bool sold;
         uint countResultTrue;
         uint totalVipUser;
-        uint256 deadline;
+        uint256 nftDeadline;
         bool installmentPayedOption;
+        uint256 installmentPriceForOne;
+        uint256 installmentMount;
     }
 
 
@@ -348,16 +350,16 @@ contract Mono is DSMath,ReentrancyGuard{
         _;
     }
      
-    modifier notDeadline() {
-        require(block.timestamp<=deadline,"Deadline bro");
-        _;
-    }
+    // modifier notDeadline() {
+    //     require(block.timestamp<=deadline,"Deadline bro");
+    //     _;
+    // }
 
-    modifier notInstallmentDeadline() {
-        require(block.timestamp<=installmentDeadline,"Installment Deadline bro");
-        _;
-        installmentAmountForOne = installmentAmountForOne + 1 ether;
-    }
+    // modifier notInstallmentDeadline() {
+    //     require(block.timestamp<=installmentDeadline,"Installment Deadline bro");
+    //     _;
+    //     installmentAmountForOne = installmentAmountForOne + 1 ether;
+    // }
 
     // modifier State(DAOState _daoState){
     //     require(daoState == _daoState);
@@ -410,16 +412,16 @@ contract Mono is DSMath,ReentrancyGuard{
         return idToMarketItem[_itemId].deadline;
     }
 
-    function setInstallmentDeadline(uint256 numberOfDays,uint _itemId) external onlyOwner  {
-        require(idToMarketItem[_itemId].itemId>0,"This nft not in our process.");
-        require(idToMarketItem[_itemId].sold==false,"This nft sold out.");
+    // function setInstallmentDeadline(uint256 numberOfDays,uint _itemId) external onlyOwner  {
+    //     require(idToMarketItem[_itemId].itemId>0,"This nft not in our process.");
+    //     require(idToMarketItem[_itemId].sold==false,"This nft sold out.");
         
-        installmentDeadline = block.timestamp + (numberOfDays * 100 seconds);
-    }
+    //     installmentDeadline = block.timestamp + (numberOfDays * 100 seconds);
+    // }
 
-    function getInstallmentDeadline() public view returns (uint256) {
-        return installmentDeadline;
-    }
+    // function getInstallmentDeadline() public view returns (uint256) {
+    //     return installmentDeadline;
+    // }
 
 
     /* Will Open Agin */
@@ -458,26 +460,66 @@ contract Mono is DSMath,ReentrancyGuard{
         require(expectedPrice > 0, "Price must be at least 1 wei");
         require(msg.value == expectedPrice, "Price must be equal to listing price");
         owner =msg.sender;
-        deadline = block.timestamp + (endDate * 100 seconds);
-
+        uint256 deadline = block.timestamp + (endDate * 100 seconds);
+        //make sure deadlines for each contract
 
         _itemIds.increment();
         uint256 itemId = _itemIds.current();
-  
-        idToMarketItem[itemId] =  MarketItem(
-        itemId,
-        nftContract,
-        tokenId,
-        payable(msg.sender),//sender
-        payable(address(0)),//mono
-        expectedPrice,
-        false,
-        0,
-        0,
-        deadline,
-        installmentPayedOption
+          
 
-        );
+        //if(bool) true ise farkli degilse farkli bir struct yarat
+
+        /*
+                bool installmentPayedOption;
+        uint256 installmentPriceForOne;
+        uint256 installmentMount;
+
+
+        */
+        if(installmentPayedOption == true){
+            uint256 installmentAmountForOne = (expectedPrice/_installmenMounth);
+            
+
+            idToMarketItem[itemId] =  MarketItem(
+
+                itemId,
+                nftContract,
+                tokenId,
+                payable(msg.sender),//sender
+                payable(address(0)),//mono
+                expectedPrice,
+                false,
+                0,
+                0,
+                deadline,
+                installmentPayedOption,
+                installmentAmountForOne,
+                _installmenMounth
+
+            );
+
+
+        }
+        else{
+            idToMarketItem[itemId] =  MarketItem(
+            itemId,
+            nftContract,
+            tokenId,
+            payable(msg.sender),//sender
+            payable(address(0)),//mono
+            expectedPrice,
+            false,
+            0,
+            0,
+            deadline,
+            false,
+            0,
+            0
+            );
+        }
+
+
+  
 
         //IERC721(nftContract).transferFrom(msg.sender, address(this), tokenId);
 
@@ -495,7 +537,7 @@ contract Mono is DSMath,ReentrancyGuard{
 
   /* Start the sale of a monos item */
   /* Transfers ownership */
-  function transferNftToArtist(address nftContract,uint256 itemId) public payable nonReentrant notDeadline{
+  function transferNftToArtist(address nftContract,uint256 itemId) public payable nonReentrant {
     require(idToMarketItem[itemId].countResultTrue >= 2,"Make Consensus proof");
     //bir kontrol koyulmali 
     uint price = idToMarketItem[itemId].price;
@@ -533,6 +575,7 @@ contract Mono is DSMath,ReentrancyGuard{
     //registerere user with number ile dusunursem ?!
   function fetchUserItems() public view returns (Person[] memory) {
     uint currentIndex = 0;
+    uint payedAmount = 0;
 
     Person[] memory users = new Person[](userID);
     for (uint i = 0; i < userID; i++) {
@@ -544,6 +587,22 @@ contract Mono is DSMath,ReentrancyGuard{
       }
     }
     return users;
+  }
+
+  function fetchmyProfit() public view returns (uint256) {
+    uint currentIndex = 0;
+    uint payedAmount = 0;
+
+    Person[] memory users = new Person[](userID);
+    for (uint i = 0; i < userID; i++) {
+      if (registeredPersonNumber[i + 1].name == msg.sender) {
+        uint currentId = i + 1;
+        uint256 currentItem = registeredPersonNumber[currentId].payedAmount;
+        payedAmount+= currentItem;
+        currentIndex += 1;
+      }
+    }
+    return payedAmount;
   }
 
 
@@ -566,7 +625,7 @@ contract Mono is DSMath,ReentrancyGuard{
       emit Sent(msg.sender, payable(owner),amount); 
     }
 
-    function addVip(uint _itemId) external onlyOwner notDeadline{
+    function addVip(uint _itemId) external onlyOwner {
         //require(registeredPersonNumber[userID].name == msg.sender,"You shall not pass !");
         Person memory _person = registeredPersonNumber[userID];
         MarketItem memory  _marketItem = idToMarketItem[_itemId];
@@ -581,7 +640,7 @@ contract Mono is DSMath,ReentrancyGuard{
         userID++;
     }
 
-    function makeUserVip(uint _itemId,uint _userID) external onlyOwner notDeadline{
+    function makeUserVip(uint _itemId,uint _userID) external onlyOwner {
         //require(registeredPersonNumber[userID].name == msg.sender,"You shall not pass !");
         Person memory _person = registeredPersonNumber[_userID];
         MarketItem memory  _marketItem = idToMarketItem[_itemId];
@@ -591,7 +650,7 @@ contract Mono is DSMath,ReentrancyGuard{
         idToMarketItem[_itemId] = _marketItem;
     }
 
-   function makeConsensius(uint _itemId,bool _choise) public onlyAdmin notDeadline returns(bool result){
+   function makeConsensius(uint _itemId,bool _choise) public onlyAdmin  returns(bool result){
        //uint -> bool admin to item icin ?
        bool voted = false;
         if(!registeredAdmin[msg.sender].isVoted){
@@ -608,7 +667,7 @@ contract Mono is DSMath,ReentrancyGuard{
         return voted;
     }
 
-    function addAdmin(address _newAdmin) public onlyAdmin notDeadline{
+    function addAdmin(address _newAdmin) public onlyAdmin {
         if(admin2==address(0)){
             admin2 = _newAdmin;
         }
@@ -618,7 +677,7 @@ contract Mono is DSMath,ReentrancyGuard{
        
     }
 
-    function sendToMonoPrivate(uint _itemId) payable external onlyVip notDeadline{ 
+    function sendToMonoPrivate(uint _itemId) payable external onlyVip { 
         require(idToMarketItem[_itemId].itemId>0,"This nft not in our process.");
         //require(registeredPersonNumber[userID].name == msg.sender,"You shall not pass !");
         address sender=msg.sender;
@@ -692,7 +751,7 @@ contract Mono is DSMath,ReentrancyGuard{
         return result;
     }
 
-    function shareTheProfitWithLenders(address payable receiver) payable external onlyOwner notDeadline{
+    function shareTheProfitWithLenders(address payable receiver) payable external onlyOwner {
         //id ve adresler uyuyor mu ? bir kontrol yap
         uint256 amount = msg.value;
         uint256 ownerBalance = owner.balance;
@@ -731,7 +790,8 @@ contract Mono is DSMath,ReentrancyGuard{
         accountBalance = x.balance;
     }
 
-    function installmentMono() payable external notInstallmentDeadline{
+    function installmentMono() payable external {
+        //installment deadline
         uint256 amount = msg.value;
         require(amount == installmentAmountForOne, "Please enter your installment amount for one correctly");
      
