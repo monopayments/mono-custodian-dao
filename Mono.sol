@@ -4,7 +4,6 @@ pragma solidity >=0.8.0 <0.9.0;
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 
-
 contract DSMath {
     function add(uint x, uint y) internal pure returns (uint z) {
         require((z = x + y) >= x, "ds-math-add-overflow");
@@ -77,7 +76,6 @@ contract DSMath {
     }
 }
  
-
 interface IERC165 {
     /**
      * @dev Returns true if this contract implements the interface defined by
@@ -235,15 +233,10 @@ contract Mono is DSMath,ReentrancyGuard{
     address public admin2;
     address public admin3;
 
-    uint256 private expectedCost = 1 ether;
-    uint256 public payedCost = 0 ether;
+    // uint256 private expectedCost = 1 ether;
+    // uint256 public payedCost = 0 ether;//ne kadar para odenmis
     uint256 public monosCost = 0 ether;
     uint256 public lendersWidthrawPay = 0 ether;
-
-    uint256 public lendersProfit = 1 ether;
-    bool public locked = true;
-    
-    uint256 public totalVipAdmin = 0;
 
     uint256 public userID = 1;
 
@@ -272,7 +265,6 @@ contract Mono is DSMath,ReentrancyGuard{
 
     struct Admin {
         address AdminAddress;
-        bool isVoted;
         uint MarketItemId;
     }
 
@@ -299,6 +291,9 @@ contract Mono is DSMath,ReentrancyGuard{
         bool installmentPayedOption;
         uint256 installmentPriceForOne;
         uint256 installmentMount;
+        uint256 lendersProfit;
+        uint256 payedCost;
+        uint256 installmentDeadline;
     }
 
 
@@ -330,10 +325,10 @@ contract Mono is DSMath,ReentrancyGuard{
         _;
     }
 
-    modifier onlyUnlock() {
-        require(locked == false,"Unlock the contract.");
-        _;
-    }
+    // modifier onlyUnlock() {
+    //     require(locked == false,"Unlock the contract.");
+    //     _;
+    // }
     
     // modifier onlyOnce() {
     //     require(registeredPerson[msg.sender].Payed == false,"Each address pay only once.");
@@ -378,9 +373,9 @@ contract Mono is DSMath,ReentrancyGuard{
     //     daoState = DAOState.Ended;
     // }
 
-    function changeLock() external onlyOwner{
-        locked = false;
-    }
+    // function changeLock() external onlyOwner{
+    //     locked = false;
+    // }
 
     //MAYBE OPEN AGAIN ** 
 
@@ -395,13 +390,13 @@ contract Mono is DSMath,ReentrancyGuard{
     function setlendersProfit(uint256 x,uint _itemId) external onlyOwner  {
         require(idToMarketItem[_itemId].itemId>0,"This nft not in our process.");
         require(idToMarketItem[_itemId].sold==false,"This nft sold out.");
-        uint256 oldProfit=lendersProfit;
-        lendersProfit = x ;
-        emit NewProfit(oldProfit,lendersProfit);
+        uint256 oldProfit = idToMarketItem[_itemId].lendersProfit;
+        idToMarketItem[_itemId].lendersProfit = x ;
+        emit NewProfit(oldProfit,idToMarketItem[_itemId].lendersProfit);
     }
 
-    function getlendersProfit() public view returns (uint256) {
-        return lendersProfit;
+    function getlendersProfit(uint _itemId) public view returns (uint256) {
+        return idToMarketItem[_itemId].lendersProfit;
     }
 
 
@@ -409,7 +404,7 @@ contract Mono is DSMath,ReentrancyGuard{
         require(idToMarketItem[_itemId].itemId>0,"This nft not in our process.");
         require(idToMarketItem[_itemId].sold==false,"This nft sold out.");
 
-        return idToMarketItem[_itemId].deadline;
+        return idToMarketItem[_itemId].nftDeadline;
     }
 
     // function setInstallmentDeadline(uint256 numberOfDays,uint _itemId) external onlyOwner  {
@@ -456,32 +451,24 @@ contract Mono is DSMath,ReentrancyGuard{
     
     // }
 
-    function NOsendNFTtoMono(address nftContract,uint256 tokenId,uint256 expectedPrice,uint256 endDate,bool installmentPayedOption,uint256 _installmenMounth) public payable nonReentrant {
+    function NOsendNFTtoMono(address nftContract,
+    uint256 tokenId,uint256 expectedPrice,uint256 endDate,bool installmentPayedOption,
+    uint256 _installmenMounth,uint256 _lendersProfit) public payable nonReentrant {
         require(expectedPrice > 0, "Price must be at least 1 wei");
         require(msg.value == expectedPrice, "Price must be equal to listing price");
         owner =msg.sender;
         uint256 deadline = block.timestamp + (endDate * 100 seconds);
+        uint256 installmentDeadline = block.timestamp + (endDate * 100 seconds);
         //make sure deadlines for each contract
 
         _itemIds.increment();
         uint256 itemId = _itemIds.current();
-          
 
-        //if(bool) true ise farkli degilse farkli bir struct yarat
-
-        /*
-                bool installmentPayedOption;
-        uint256 installmentPriceForOne;
-        uint256 installmentMount;
-
-
-        */
         if(installmentPayedOption == true){
             uint256 installmentAmountForOne = (expectedPrice/_installmenMounth);
-            
+            //ser instalment deadline
 
             idToMarketItem[itemId] =  MarketItem(
-
                 itemId,
                 nftContract,
                 tokenId,
@@ -494,11 +481,12 @@ contract Mono is DSMath,ReentrancyGuard{
                 deadline,
                 installmentPayedOption,
                 installmentAmountForOne,
-                _installmenMounth
+                _installmenMounth,
+                _lendersProfit,
+                0,
+                installmentDeadline
 
             );
-
-
         }
         else{
             idToMarketItem[itemId] =  MarketItem(
@@ -514,12 +502,12 @@ contract Mono is DSMath,ReentrancyGuard{
             deadline,
             false,
             0,
+            0,
+            _lendersProfit,
+            0,
             0
             );
         }
-
-
-  
 
         //IERC721(nftContract).transferFrom(msg.sender, address(this), tokenId);
 
@@ -543,15 +531,14 @@ contract Mono is DSMath,ReentrancyGuard{
     uint price = idToMarketItem[itemId].price;
     uint tokenId = idToMarketItem[itemId].tokenId;
     require(msg.value == price, "Please submit the asking price in order to complete the purchase");
-
-    require(idToMarketItem[itemId].countResultTrue >= 2,"First consensius decide");
+    
 
     idToMarketItem[itemId].seller.transfer(msg.value);
     IERC721(nftContract).transferFrom(address(this), msg.sender, tokenId);
     idToMarketItem[itemId].owner = payable(msg.sender);
     idToMarketItem[itemId].sold = true;
     _itemsSold.increment();
-    payable(owner).transfer(expectedCost);
+    //payable(owner).transfer(expectedCost);
   }
 
   /* Returns all unsold mono items */
@@ -613,6 +600,7 @@ contract Mono is DSMath,ReentrancyGuard{
 
       require(amount<=senderBalance,"You don't have enough eth for this");
       require(amount != 0,"Amount can not be 0");
+      MarketItem memory  _marketItem = idToMarketItem[_itemId];
 
       Person memory _person = registeredPersonNumber[userID];
       _person.name = msg.sender;
@@ -620,7 +608,11 @@ contract Mono is DSMath,ReentrancyGuard{
       _person.isVip = false;
       _person.payedAmount += amount;
       _person.item=_itemId;
+       _marketItem.payedCost+=amount;   
       registeredPersonNumber[userID] = _person;
+      idToMarketItem[_itemId] = _marketItem;
+
+      payable(owner).transfer(amount);
       userID++;
       emit Sent(msg.sender, payable(owner),amount); 
     }
@@ -650,15 +642,10 @@ contract Mono is DSMath,ReentrancyGuard{
         idToMarketItem[_itemId] = _marketItem;
     }
 
-   function makeConsensius(uint _itemId,bool _choise) public onlyAdmin  returns(bool result){
+   function makeConsensius(uint _itemId,bool _choise) public onlyAdmin returns(bool result){
        //uint -> bool admin to item icin ?
        bool voted = false;
-        if(!registeredAdmin[msg.sender].isVoted){
-            registeredAdmin[msg.sender].isVoted = true;
-            
-             Admin memory _admin = registeredAdmin[msg.sender];
-             registeredAdmin[msg.sender]=_admin;
-
+        if(registeredAdmin[msg.sender].AdminAddress != address(0)){
             if(_choise==true){
                 idToMarketItem[_itemId].countResultTrue++;
             }
@@ -668,11 +655,11 @@ contract Mono is DSMath,ReentrancyGuard{
     }
 
     function addAdmin(address _newAdmin) public onlyAdmin {
-        if(admin2==address(0)){
-            admin2 = _newAdmin;
-        }
-        else{
-            admin3 = _newAdmin;
+        Admin memory _admin = registeredAdmin[_newAdmin];
+
+        if(registeredAdmin[msg.sender].AdminAddress != address(0)){
+            _admin.AdminAddress =  _newAdmin;
+            registeredAdmin[_newAdmin] = _admin;
         }
        
     }
@@ -691,94 +678,132 @@ contract Mono is DSMath,ReentrancyGuard{
 
         _person.name = msg.sender;
         _person.Payed = true;
-        _person.isVip = false;
+        _person.isVip = true;
         _person.payedAmount = amount;
         _person.item = _itemId;
         registeredPersonNumber[userID] = _person;
+        payable(owner).transfer(amount);
         userID++;
         emit Sent(msg.sender, payable(owner),amount);
     }
 
-    function showMyProfit()  external  view returns(uint256){
-        uint256  myProfit = 0 ether;
-        uint256  myAmount = 0 ether;
-        uint256  myPay = 0 ether;
+    // function showMyProfit(uint _itemId)  external  view returns(uint256){
+    //     uint currentIndex = 0;
 
-        require(registeredPerson[msg.sender].name != address(0),"Only lenders can use");
+    //     require(idToMarketItem[_itemId].itemId>0,"This nft not in our process.");
+    //     uint256  myProfit = 0 ether;
+    //     uint256  myAmount = 0 ether;
+    //     uint256  myPay = 0 ether;
 
-        myAmount = registeredPerson[msg.sender].payedAmount;
-        
-        myPay = wdiv(myAmount,payedCost);
+    //     uint payedAmount = 0;
 
-        myProfit = wmul(myPay,lendersProfit);
+    //     Person[] memory users = new Person[](userID);
+    //     for (uint i = 0; i < userID; i++) {
+    //         if (registeredPersonNumber[i + 1].name == msg.sender && registeredPersonNumber[i + 1].item == _itemId) {
+    //             uint currentId = i + 1;
+    //             uint256 currentItem = registeredPersonNumber[currentId].payedAmount;
+    //             myAmount+= currentItem;
+    //             currentIndex += 1;
+    //         }
+    //     }
+    //     myPay = wdiv(myAmount,idToMarketItem[_itemId].payedCost);
 
-        return myProfit;
-    }
+    //     myProfit = wmul(myPay,idToMarketItem[_itemId].lendersProfit);
 
-     function showMyTotalProfit() onlyLenders external  view returns(uint256){
+    //     return myProfit;
+
+    // }
+
+
+    function showMyTotalProfit(uint _itemId) onlyLenders external  view returns(uint256){
+        require(idToMarketItem[_itemId].itemId>0,"This nft not in our process.");
+        uint currentIndex = 0;
+
         uint256  myTotalProfit = 0 ether;
         uint256  myProfit = 0 ether;
         uint256  myAmount = 0 ether;
         uint256  myPay = 0 ether;
 
-        myAmount = registeredPerson[msg.sender].payedAmount;
-       
-        myPay = wdiv(myAmount,payedCost);
+        uint payedAmount = 0;
 
-        myProfit = wmul(myPay,lendersProfit);
+        Person[] memory users = new Person[](userID);
+        for (uint i = 0; i < userID; i++) {
+            if (registeredPersonNumber[i + 1].name == msg.sender && registeredPersonNumber[i + 1].item == _itemId) {
+                uint currentId = i + 1;
+                uint256 currentItem = registeredPersonNumber[currentId].payedAmount;
+                myAmount+= currentItem;
+                currentIndex += 1;
+            }
+        }
+        myPay = wdiv(myAmount,idToMarketItem[_itemId].payedCost);
 
+        myProfit = wmul(myPay,idToMarketItem[_itemId].lendersProfit);
         myTotalProfit = add(myAmount,myProfit);
 
         return myTotalProfit;
     }
 
-    function showResultAmount() onlyLenders external  view returns(uint256){
-        uint256  myTotalProfit = 0 ether;
-        uint256  myProfit = 0 ether;
-        uint256  myAmount = 0 ether;
-        uint256  myPay = 0 ether;
-        uint256  result = 0 ether;
+    // function showResultAmount() onlyLenders external  view returns(uint256){
+    //     uint256  myTotalProfit = 0 ether;
+    //     uint256  myProfit = 0 ether;
+    //     uint256  myAmount = 0 ether;
+    //     uint256  myPay = 0 ether;
+    //     uint256  result = 0 ether;
 
-        myAmount = registeredPerson[msg.sender].payedAmount;
+    //     myAmount = registeredPerson[msg.sender].payedAmount;
 
-        myPay = wdiv(myAmount,payedCost);
+    //     myPay = wdiv(myAmount,payedCost);
 
-        myProfit = wmul(myPay,lendersProfit);
+    //     myProfit = wmul(myPay,lendersProfit);
 
-        myTotalProfit = add(myAmount,myProfit);
-        result = sub(myTotalProfit,lendersWidthrawPay);
+    //     myTotalProfit = add(myAmount,myProfit);
+    //     result = sub(myTotalProfit,lendersWidthrawPay);
 
-        return result;
-    }
+    //     return result;
+    // }
 
-    function shareTheProfitWithLenders(address payable receiver) payable external onlyOwner {
-        //id ve adresler uyuyor mu ? bir kontrol yap
+    function shareTheProfitWithLenders(address payable receiver,uint _itemId) payable external onlyOwner {
+        //make sure add more require
+        require(idToMarketItem[_itemId].itemId>0,"This nft not in our process.");
+        
         uint256 amount = msg.value;
         uint256 ownerBalance = owner.balance;
 
         require(registeredPerson[receiver].name != address(0),"no user in this registered address");
-        require(owner != address(0), "Cannot transfer from the zero address");
+        //require(owner != address(0), "Cannot transfer from the zero address");
         require(receiver != address(0), "Cannot transfer to the zero address");
         require(ownerBalance >= amount, "Transfer amount exceeds balance");
+
+        uint currentIndex = 0;
 
         uint256  myTotalProfit = 0 ether;
         uint256  myProfit = 0 ether;
         uint256  myAmount = 0 ether;
         uint256  myPay = 0 ether;
-        
-        myAmount = registeredPerson[receiver].payedAmount;
-        myPay = wdiv(myAmount,payedCost);
-        myProfit = wmul(myPay,lendersProfit);
+
+        uint payedAmount = 0;
+
+        Person[] memory users = new Person[](userID);
+        for (uint i = 0; i < userID; i++) {
+            if (registeredPersonNumber[i + 1].name == msg.sender && registeredPersonNumber[i + 1].item == _itemId) {
+                uint currentId = i + 1;
+                uint256 currentItem = registeredPersonNumber[currentId].payedAmount;
+                myAmount+= currentItem;
+                currentIndex += 1;
+            }
+        }
+        myPay = wdiv(myAmount,idToMarketItem[_itemId].payedCost);
+
+        myProfit = wmul(myPay,idToMarketItem[_itemId].lendersProfit);
         myTotalProfit = add(myAmount,myProfit);
 
         require(amount == myTotalProfit, "Please enter your prfit correctly");
-        require(lendersWidthrawPay <= payedCost, "Users profit must be less than total amount.");
+        //require(lendersWidthrawPay <= payedCost, "Users profit must be less than total amount.");
 
         sendValue(receiver,amount);
         lendersWidthrawPay += amount;
         emit Sent(owner,receiver,amount);
     }
-
     function sendValue(address payable recipient, uint256 amount) internal {
         require(recipient.balance >= amount, "Address: insufficient balance");
 
@@ -786,18 +811,20 @@ contract Mono is DSMath,ReentrancyGuard{
         require(success, "Address: unable to send value, recipient may have reverted");
     }
 
-    function balance(address x) public view returns(uint accountBalance){
-        accountBalance = x.balance;
-    }
+    // function balance(address x) public view returns(uint accountBalance){
+    //     accountBalance = x.balance;
+    // }
 
-    function installmentMono() payable external {
-        //installment deadline
+    function installmentMono(uint _itemId) onlyOwner payable external {
+        require(idToMarketItem[_itemId].itemId>0,"This nft not in our process.");
+        require(block.timestamp > idToMarketItem[_itemId].installmentDeadline, "This nft not in our process.");
+
         uint256 amount = msg.value;
-        require(amount == installmentAmountForOne, "Please enter your installment amount for one correctly");
-     
-        sendValue(payable(owner),amount);
-        installmentAmount -=amount;
+        require(amount == idToMarketItem[_itemId].installmentPriceForOne, "Please enter your installment amount for one correctly");
+        MarketItem memory  _marketItem = idToMarketItem[_itemId];
+        payable(owner).transfer(amount);
+        _marketItem.price -= amount;
+        idToMarketItem[_itemId] = _marketItem;
+        //set new deadline
     }
-
-
 }
