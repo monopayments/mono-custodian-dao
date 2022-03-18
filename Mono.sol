@@ -268,6 +268,9 @@ contract Mono is DSMath,ReentrancyGuard{
     mapping(uint256 => MarketItem) public idToMarketItem;//make private
     mapping(uint => Person) public registeredPersonNumber;
     mapping(address => Admin) public registeredAdmin;
+    
+    mapping(address => MarketItem) public whiteListForNft;
+    mapping(address => Person) public whiteListForUser;
 
     event Sent(address from, address to, uint256 amount);
     event NewProfit(uint256 from,  uint256 to);
@@ -466,7 +469,6 @@ contract Mono is DSMath,ReentrancyGuard{
     //     require(idToMarketItem[_itemId].seller == msg.sender,"Only NFT Artist can add private person");
     //     Person memory _person = registeredPersonNumber[userID];
     //     MarketItem memory  _marketItem = idToMarketItem[_itemId];
-
     //     _person.name = msg.sender;
     //     _person.Payed = false;
     //     _person.isVip = true;
@@ -476,7 +478,6 @@ contract Mono is DSMath,ReentrancyGuard{
     //     idToMarketItem[_itemId] = _marketItem;
     //     userID++;
     // }
-
     // function makeUserVip(uint _itemId,uint _userID) external  {
     //     require(idToMarketItem[_itemId].seller == msg.sender,"Only NFT Artist can add private person");
     //     Person memory _person = registeredPersonNumber[_userID];
@@ -561,11 +562,9 @@ contract Mono is DSMath,ReentrancyGuard{
 
     //****** WILL DO AGAIN ****
     /**
-
     function installmentMono(uint _itemId) onlyOwner payable external {
         require(idToMarketItem[_itemId].itemId>0,"This nft not in our process.");
         require(block.timestamp <= idToMarketItem[_itemId].installmentDeadline, "Installment Deadline !");
-
         uint256 amount = msg.value;
         require(amount == idToMarketItem[_itemId].installmentPriceForOne, "Please enter your installment amount for one correctly");
         MarketItem memory  _marketItem = idToMarketItem[_itemId];
@@ -573,7 +572,6 @@ contract Mono is DSMath,ReentrancyGuard{
         _marketItem.price -= amount;
         idToMarketItem[_itemId] = _marketItem;
     }
-
     */
 
     function payBackForNFT(uint256 itemId) payable public nonReentrant {
