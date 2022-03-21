@@ -505,8 +505,12 @@ contract Mono is DSMath,ReentrancyGuard{
         if(registeredAdmin[msg.sender].AdminAddress != address(0)){
             if(_choise==true){
                 idToMarketItem[_itemId].countResultTrue++;
+                voted=true;
             }
-        voted=true;
+            else{
+                idToMarketItem[_itemId].countResultTrue--;
+            }
+        
         }
         return voted;
     }
