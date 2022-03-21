@@ -262,6 +262,7 @@ contract Mono is DSMath,ReentrancyGuard{
         //uint256 installmentPriceForOne;
         //uint256 installmentMount;
         uint256 lendersProfit;
+        uint256 monosProfit;
         uint256 payedCost;
     }
 
@@ -290,7 +291,7 @@ contract Mono is DSMath,ReentrancyGuard{
         owner=payable(msg.sender);
     }
 
-    function sendNFTtoMono(address nftContract,uint256 tokenId,uint256 expectedPrice,uint256 endDate,uint256 _lendersProfit) public payable nonReentrant {
+    function sendNFTtoMono(address nftContract,uint256 tokenId,uint256 expectedPrice,uint256 endDate,uint256 _lendersProfit) public  nonReentrant {
         require(expectedPrice > 0, "Price must be at least 1 wei");
         //require(msg.value == expectedPrice, "Price must be equal to listing price");
         uint256 deadline = block.timestamp + (endDate * 100 seconds);
@@ -318,6 +319,7 @@ contract Mono is DSMath,ReentrancyGuard{
                 // installmentAmountForOne,
                 // _installmenMounth,
              _lendersProfit,
+            0,
             0
                 //installmentDeadline
 
@@ -361,10 +363,10 @@ contract Mono is DSMath,ReentrancyGuard{
 
     /* Start the sale of a monos item */
     /* Transfers ownership */
-    function transferNftToArtist(address nftContract,uint256 itemId) public payable nonReentrant {
+    function transferNftToArtist(address nftContract,uint256 itemId) public nonReentrant {
         require(idToMarketItem[itemId].seller == msg.sender,"Only NFT Artist can add private person");
         require(idToMarketItem[itemId].countResultTrue >= 2,"Make Consensus proof");
-        uint price = idToMarketItem[itemId].price;
+        //uint price = idToMarketItem[itemId].price;
         uint tokenId = idToMarketItem[itemId].tokenId;
         //require(msg.value == price, "Please submit the asking price in order to complete the purchase");
         
@@ -410,6 +412,12 @@ contract Mono is DSMath,ReentrancyGuard{
         uint256 oldProfit = idToMarketItem[_itemId].lendersProfit;
         idToMarketItem[_itemId].lendersProfit = x ;
         emit NewProfit(oldProfit,idToMarketItem[_itemId].lendersProfit);
+    }
+
+    function setMonosProfit(uint256 _profit,uint _itemId) public onlyAdmin {
+        require(idToMarketItem[_itemId].itemId>0,"This nft not in our process.");
+        require(idToMarketItem[_itemId].sold==false,"This nft sold out.");
+        idToMarketItem[_itemId].monosProfit = _profit ;
     }
 
     function getlendersProfit(uint _itemId) public view returns (uint256) {
@@ -531,40 +539,6 @@ contract Mono is DSMath,ReentrancyGuard{
         _contract.isUsable = _isUsable;
         whiteListForNft[_newContract] = _contract;
     }
-
-    // function updateContractWhitelist(address newContract,uint _maxPayedAmount,bool _isUsable) public onlyAdmin {
-    //     WhiteListContract memory _contract = whiteListForNft[newContract];
-    //     _contract.contractAddress =  newContract;
-    //     _contract.maxPayedAmount=_maxPayedAmount;
-    //     _contract.isUsable = _isUsable;
-    //     whiteListForNft[newContract] = _contract;
-    // }
-   
-    
-
-    // function sendToMonoPrivate(uint _itemId) payable external  { 
-    //     require(idToMarketItem[_itemId].seller == msg.sender,"Only NFT Artist can add private person");
-    //     require(idToMarketItem[_itemId].itemId>0,"This nft not in our process.");
-    //         //require(registeredPersonNumber[userID].name == msg.sender,"You shall not pass !");
-    //         address sender=msg.sender;
-    //         uint256 senderBalance = sender.balance;
-    //         uint256 amount = msg.value;
-        
-    //         require(amount<=senderBalance,"You don't have enough eth for this");
-    //         require(amount != 0,"Amount can not be 0");
-
-    //         Person memory _person = registeredPersonNumber[userID];
-
-    //         _person.name = msg.sender;
-    //         _person.Payed = true;
-    //         _person.isVip = true;
-    //         _person.payedAmount = amount;
-    //         _person.item = _itemId;
-    //         registeredPersonNumber[userID] = _person;
-    //         payable(owner).transfer(amount);
-    //         userID++;
-    //         emit Sent(msg.sender, payable(owner),amount);
-    // }
 
     function showMyTotalProfit(uint _itemId)  public  view returns(uint256){
             require(idToMarketItem[_itemId].itemId>0,"This nft not in our process.");
