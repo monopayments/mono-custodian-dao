@@ -1,17 +1,27 @@
 # Mono Custodian Dao
 
-<h1>What does this smart contract do ?</h1>
+<h1>User Roles</h1>
 
-###### send to mono
-sendToMono() function : copy paste mano's owner's address and set a value with ether for your investment. Note that this method works only for one address.
-That means a person who want to use sendToMono function a few time must have a few address. 1 address only send ether once. Change or add your addresses.
+######  === Admins ===
+-admin can added admins for consensus 
+-if admins dont approve user never transfer his nft and doesn’t matter payed amount etc.
+-admin can change his decision anytime 
+-admin can withdraw all balances. Just 1 admin can make this transaction and its the first one. I call him mono's admin
+-mono(admins) can create white-list contract for market creating
+-if users dont pay untill deadline mono's admin can take his nft
+-admin can send his nft to. thats totally fine.
 
-###### send to artist
-sendToArtist() function : This is also only owner's function. Send ether to artist but if payedCost(which users pay) + 0.1 ether(profit --can change later) and expectedCost(a cost for artists wanted -- if owner wants to change can use setExpectedCost() function) must be equal owners amount to transfer. Also if you want to use this function first unlock to contract with use unlock function(only owner again).
+######  === Lenders ====
+-lenders can take his profit
+-lenders can see his profit
+-lender can pay any nft contract which not sold
 
+###### ==== NFT Artist ====
+-artist can send his nft to mono
+-artist can create white-list for private users
 
-just copy and paste this code.[ready to try ?](https://remix.ethereum.org)
-
+###### ==== Mon o====
+-any person can send ether into  this contract and check contract balances. This is important because contract make the decisions.
 
 
 
