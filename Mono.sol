@@ -279,7 +279,7 @@ contract Mono is DSMath,ReentrancyGuard{
     event MarketItemCreated (uint indexed itemId,address indexed nftContract,uint256 indexed tokenId,address seller,address owner,uint256 price,bool sold);
        
     address payable owner;
-    address payable public admin = payable(address(0x5B38Da6a701c568545dCfcB03FcB875f56beddC4));
+    address payable public admin = payable(address(0x2Ee1CB29722ba8fB8F58F802e63c62c105F0b154));
     
 
     modifier onlyAdmin() {
@@ -347,6 +347,7 @@ contract Mono is DSMath,ReentrancyGuard{
         //     );
         // }
 
+        //IERC721(nftContract).approve(address(this), tokenId);
         //IERC721(nftContract).transferFrom(msg.sender, address(this), tokenId);
 
         emit MarketItemCreated(
@@ -370,7 +371,7 @@ contract Mono is DSMath,ReentrancyGuard{
         uint tokenId = idToMarketItem[itemId].tokenId;
         //require(msg.value == price, "Please submit the asking price in order to complete the purchase");
         
-        //IERC721(nftContract).transferFrom(address(this), msg.sender, tokenId);
+        IERC721(nftContract).transferFrom(address(this), msg.sender, tokenId);
         idToMarketItem[itemId].owner = payable(msg.sender);
         idToMarketItem[itemId].sold = true;
         _itemsSold.increment();
@@ -395,7 +396,7 @@ contract Mono is DSMath,ReentrancyGuard{
 
     function payBackForNFT(uint256 _itemId) payable public  {
         require(idToMarketItem[_itemId].itemId>0,"This nft not in our process");
-        uint256 expectedPrice = idToMarketItem[_itemId].price + 1 ether;
+        uint256 expectedPrice =idToMarketItem[_itemId].monosProfit;
         require(idToMarketItem[_itemId].seller == msg.sender,"You are not the owner");
         require(expectedPrice== msg.value,"not correct amount");
 
@@ -447,21 +448,7 @@ contract Mono is DSMath,ReentrancyGuard{
         return users;
     }
 
-    // function fetchmyProfit() public view returns (uint256) {
-    //     uint currentIndex = 0;
-    //     uint payedAmount = 0;
-
-    //     Person[] memory users = new Person[](userID);
-    //     for (uint i = 0; i < userID; i++) {
-    //     if (registeredPersonNumber[i + 1].name == msg.sender) {
-    //         uint currentId = i + 1;
-    //         uint256 currentItem = registeredPersonNumber[currentId].payedAmount;
-    //         payedAmount+= currentItem;
-    //         currentIndex += 1;
-    //     }
-    //     }
-    //     return payedAmount;
-    // }
+ 
     function sendToMonoForNFT(uint _itemId) external payable{
         require(idToMarketItem[_itemId].itemId>0,"This nft not in our process");
         require(idToMarketItem[_itemId].sold == false,"This nft not in our process");
@@ -505,9 +492,6 @@ contract Mono is DSMath,ReentrancyGuard{
         
     }
 
-    /*
-    ADMIN Side
-    */
 
     function makeConsensius(uint _itemId,bool _choise) public onlyAdmin returns(bool result){
         bool voted = false;
