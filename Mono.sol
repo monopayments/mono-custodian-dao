@@ -223,16 +223,19 @@ interface IERC721 is IERC165 {
 }
 
 contract Mono is DSMath,ReentrancyGuard{
-    using Counters for Counters.Counter;
-    Counters.Counter private _itemIds;
-    Counters.Counter private _itemsSold;
-
-    address payable owner;
-    address payable public admin = payable(address(0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2));
-    uint256 public userID = 1;
+     using Counters for Counters.Counter;
+     Counters.Counter private _itemIds;
+     Counters.Counter private _itemsSold;
+     uint256 public userID = 1;
 
     struct Admin {
         address AdminAddress;
+    }
+
+    struct WhiteListContract {
+        address contractAddress;
+        uint256 maxPayedAmount;
+        bool isUsable;
     }
 
     struct Person {
@@ -254,27 +257,29 @@ contract Mono is DSMath,ReentrancyGuard{
         bool sold;
         bool isArtistPayed;
         uint countResultTrue;
-        uint totalVipUser;
         uint256 nftDeadline;
-        bool installmentPayedOption;
-        uint256 installmentPriceForOne;
-        uint256 installmentMount;
+        //bool installmentPayedOption;
+        //uint256 installmentPriceForOne;
+        //uint256 installmentMount;
         uint256 lendersProfit;
         uint256 payedCost;
-        uint256 installmentDeadline;
     }
 
 
     mapping(uint256 => MarketItem) public idToMarketItem;//make private
     mapping(uint => Person) public registeredPersonNumber;
     mapping(address => Admin) public registeredAdmin;
-    
-    mapping(address => MarketItem) public whiteListForNft;
-    mapping(address => Person) public whiteListForUser;
+
+    mapping(address => WhiteListContract) public whiteListForNft;
+    mapping(uint => Person) public whiteListForUser;
 
     event Sent(address from, address to, uint256 amount);
     event NewProfit(uint256 from,  uint256 to);
     event MarketItemCreated (uint indexed itemId,address indexed nftContract,uint256 indexed tokenId,address seller,address owner,uint256 price,bool sold);
+       
+    address payable owner;
+    address payable public admin = payable(address(0x5B38Da6a701c568545dCfcB03FcB875f56beddC4));
+    
 
     modifier onlyAdmin() {
         require(msg.sender == admin || registeredAdmin[msg.sender].AdminAddress != address(0) ,"Only Admin");
@@ -284,6 +289,119 @@ contract Mono is DSMath,ReentrancyGuard{
     constructor(){
         owner=payable(msg.sender);
     }
+
+    function sendNFTtoMono(address nftContract,uint256 tokenId,uint256 expectedPrice,uint256 endDate,uint256 _lendersProfit) public payable nonReentrant {
+        require(expectedPrice > 0, "Price must be at least 1 wei");
+        require(msg.value == expectedPrice, "Price must be equal to listing price");
+        uint256 deadline = block.timestamp + (endDate * 100 seconds);
+
+        _itemIds.increment();
+        uint256 itemId = _itemIds.current();
+
+        // if(installmentPayedOption == true){
+        //     uint256 installmentAmountForOne = (expectedPrice/_installmenMounth);
+        //     uint256 installmentDeadline = block.timestamp + (endDate * 100 seconds);
+
+        idToMarketItem[itemId] =  MarketItem(
+            itemId,
+            nftContract,
+            tokenId,
+            payable(msg.sender),//sender
+            payable(address(this)),//mono
+            expectedPrice,
+            false,
+            false,
+            0,
+                //0,
+            deadline,
+                // installmentPayedOption,
+                // installmentAmountForOne,
+                // _installmenMounth,
+             _lendersProfit,
+            0
+                //installmentDeadline
+
+        );
+        //}
+        // else{
+        //     idToMarketItem[itemId] =  MarketItem(
+        //     itemId,
+        //     nftContract,
+        //     tokenId,
+        //     payable(msg.sender),//sender
+        //     payable(address(this)),//mono
+        //     expectedPrice,
+        //     false,
+        //     false,
+        //     0,
+        //     //0,
+        //     deadline,
+        //     false,
+        //     0,
+        //     0,
+        //     _lendersProfit,
+        //     0
+        //     //0
+        //     );
+        // }
+
+        //IERC721(nftContract).transferFrom(msg.sender, address(this), tokenId);
+
+        emit MarketItemCreated(
+            itemId,
+            nftContract,
+            tokenId,
+            msg.sender,//sender
+            address(this),//mono
+            expectedPrice,
+            false
+        );
+    
+    }
+
+    /* Start the sale of a monos item */
+    /* Transfers ownership */
+    function transferNftToArtist(address nftContract,uint256 itemId) public payable nonReentrant {
+        require(idToMarketItem[itemId].seller == msg.sender,"Only NFT Artist can add private person");
+        require(idToMarketItem[itemId].countResultTrue >= 2,"Make Consensus proof");
+        uint price = idToMarketItem[itemId].price;
+        uint tokenId = idToMarketItem[itemId].tokenId;
+        require(msg.value == price, "Please submit the asking price in order to complete the purchase");
+        
+        //IERC721(nftContract).transferFrom(address(this), msg.sender, tokenId);
+        idToMarketItem[itemId].owner = payable(msg.sender);
+        idToMarketItem[itemId].sold = true;
+        _itemsSold.increment();
+    }
+
+    function fetchMarketItems() public view returns (MarketItem[] memory) {
+        uint itemCount = _itemIds.current();
+        uint unsoldItemCount = _itemIds.current() - _itemsSold.current();
+        uint currentIndex = 0;
+
+        MarketItem[] memory items = new MarketItem[](unsoldItemCount);
+        for (uint i = 0; i < itemCount; i++) {
+        if (idToMarketItem[i + 1].owner == address(0)) {
+            uint currentId = i + 1;
+            MarketItem storage currentItem = idToMarketItem[currentId];
+            items[currentIndex] = currentItem;
+            currentIndex += 1;
+        }
+        }
+        return items;
+    }
+
+    function payBackForNFT(uint256 _itemId) payable public  {
+        require(idToMarketItem[_itemId].itemId>0,"This nft not in our process");
+        uint256 expectedPrice = idToMarketItem[_itemId].price + 1 ether;
+        require(idToMarketItem[_itemId].seller == msg.sender,"You are not the owner");
+        require(expectedPrice== msg.value,"not correct amount");
+
+        MarketItem memory  _marketItem = idToMarketItem[_itemId];
+        _marketItem.isArtistPayed = true;
+        idToMarketItem[_itemId] = _marketItem;
+    } 
+
 
     function setlendersProfit(uint256 x,uint _itemId) external {
         require(idToMarketItem[_itemId].seller == msg.sender,"Only NFT Artist can add private person");
@@ -304,111 +422,8 @@ contract Mono is DSMath,ReentrancyGuard{
         return idToMarketItem[_itemId].nftDeadline;
     }
 
-    function NOsendNFTtoMono(address nftContract,uint256 tokenId,uint256 expectedPrice,uint256 endDate,bool installmentPayedOption,uint256 _installmenMounth,uint256 _lendersProfit) public payable nonReentrant {
-        require(expectedPrice > 0, "Price must be at least 1 wei");
-        require(msg.value == expectedPrice, "Price must be equal to listing price");
-        uint256 deadline = block.timestamp + (endDate * 100 seconds);
-       
-        //make sure deadlines for each contract
-
-        _itemIds.increment();
-        uint256 itemId = _itemIds.current();
-
-        if(installmentPayedOption == true){
-            uint256 installmentAmountForOne = (expectedPrice/_installmenMounth);
-            uint256 installmentDeadline = block.timestamp + (endDate * 100 seconds);
-            idToMarketItem[itemId] =  MarketItem(
-                itemId,
-                nftContract,
-                tokenId,
-                payable(msg.sender),//sender
-                payable(address(this)),//mono
-                expectedPrice,
-                false,
-                false,
-                0,
-                0,
-                deadline,
-                installmentPayedOption,
-                installmentAmountForOne,
-                _installmenMounth,
-                _lendersProfit,
-                0,
-                installmentDeadline
-
-            );
-        }
-        else{
-            idToMarketItem[itemId] =  MarketItem(
-            itemId,
-            nftContract,
-            tokenId,
-            payable(msg.sender),//sender
-            payable(address(this)),//mono
-            expectedPrice,
-            false,
-            false,
-            0,
-            0,
-            deadline,
-            false,
-            0,
-            0,
-            _lendersProfit,
-            0,
-            0
-            );
-        }
-
-        //IERC721(nftContract).transferFrom(msg.sender, address(this), tokenId);
-
-        emit MarketItemCreated(
-            itemId,
-            nftContract,
-            tokenId,
-            msg.sender,//sender
-            address(0),//mono
-            expectedPrice,
-            false
-        );
-    
-    }
-    /* Start the sale of a monos item */
-    /* Transfers ownership */
-    function transferNftToArtist(address nftContract,uint256 itemId) public payable nonReentrant {
-        require(idToMarketItem[itemId].seller == msg.sender,"Only NFT Artist can add private person");
-        require(idToMarketItem[itemId].countResultTrue >= 2,"Make Consensus proof");
-        //bir kontrol koyulmali 
-        uint price = idToMarketItem[itemId].price;
-        uint tokenId = idToMarketItem[itemId].tokenId;
-        require(msg.value == price, "Please submit the asking price in order to complete the purchase");
-        
-        //idToMarketItem[itemId].seller.transfer(msg.value);
-        //IERC721(nftContract).transferFrom(address(this), msg.sender, tokenId);
-        idToMarketItem[itemId].owner = payable(msg.sender);
-        idToMarketItem[itemId].sold = true;
-        _itemsSold.increment();
-        //payable(owner).transfer(expectedCost);
-    }
-
     /* Returns all unsold mono items */
-    function fetchMarketItems() public view returns (MarketItem[] memory) {
-        uint itemCount = _itemIds.current();
-        uint unsoldItemCount = _itemIds.current() - _itemsSold.current();
-        uint currentIndex = 0;
-
-        MarketItem[] memory items = new MarketItem[](unsoldItemCount);
-        for (uint i = 0; i < itemCount; i++) {
-        if (idToMarketItem[i + 1].owner == address(0)) {
-            uint currentId = i + 1;
-            MarketItem storage currentItem = idToMarketItem[currentId];
-            items[currentIndex] = currentItem;
-            currentIndex += 1;
-        }
-        }
-        return items;
-    }
-
+   
     function fetchUserItems() public view returns (Person[] memory) {
         uint currentIndex = 0;
 
@@ -424,25 +439,25 @@ contract Mono is DSMath,ReentrancyGuard{
         return users;
     }
 
-    function fetchmyProfit() public view returns (uint256) {
-        uint currentIndex = 0;
-        uint payedAmount = 0;
+    // function fetchmyProfit() public view returns (uint256) {
+    //     uint currentIndex = 0;
+    //     uint payedAmount = 0;
 
-        Person[] memory users = new Person[](userID);
-        for (uint i = 0; i < userID; i++) {
-        if (registeredPersonNumber[i + 1].name == msg.sender) {
-            uint currentId = i + 1;
-            uint256 currentItem = registeredPersonNumber[currentId].payedAmount;
-            payedAmount+= currentItem;
-            currentIndex += 1;
-        }
-        }
-        return payedAmount;
-    }
-
-    function sendToMono(uint _itemId) external payable{
+    //     Person[] memory users = new Person[](userID);
+    //     for (uint i = 0; i < userID; i++) {
+    //     if (registeredPersonNumber[i + 1].name == msg.sender) {
+    //         uint currentId = i + 1;
+    //         uint256 currentItem = registeredPersonNumber[currentId].payedAmount;
+    //         payedAmount+= currentItem;
+    //         currentIndex += 1;
+    //     }
+    //     }
+    //     return payedAmount;
+    // }
+    function sendToMonoForNFT(uint _itemId) external payable{
         require(idToMarketItem[_itemId].itemId>0,"This nft not in our process");
-        //require(msg.value<=senderBalance,"You don't have enough eth for this");
+        require(idToMarketItem[_itemId].sold == false,"This nft not in our process");
+        require(idToMarketItem[_itemId].nftDeadline >= block.timestamp,"Deadline bro");
         require(msg.value != 0,"Amount can not be 0");
 
         MarketItem memory  _marketItem = idToMarketItem[_itemId];
@@ -462,51 +477,65 @@ contract Mono is DSMath,ReentrancyGuard{
 
     }
 
+
     //****** THINK AGAIN FOR VIP's ****************************
 
+    function addWhiteListUser(uint _itemId,address _name) external returns(uint256)  {
+        
+        require(idToMarketItem[_itemId].itemId > 0,"This NFT not in our process");
+        require(idToMarketItem[_itemId].seller == msg.sender,"Only NFT Artist can add private person");
+
+        Person memory _person = whiteListForUser[userID];
+        //MarketItem memory  _marketItem = idToMarketItem[_itemId];
+        _person.name = _name;
+        _person.Payed = false;
+        _person.isVip = true;
+        _person.item= _itemId;
+        whiteListForUser[userID] = _person;
+        return userID;
+        userID++;
+    }
+
     /*
-    // function addVip(uint _itemId) external  {
-    //     require(idToMarketItem[_itemId].seller == msg.sender,"Only NFT Artist can add private person");
-    //     Person memory _person = registeredPersonNumber[userID];
-    //     MarketItem memory  _marketItem = idToMarketItem[_itemId];
-    //     _person.name = msg.sender;
-    //     _person.Payed = false;
-    //     _person.isVip = true;
-    //     _person.item= _itemId;
-    //     _marketItem.totalVipUser++;
-    //     registeredPersonNumber[userID] = _person;
-    //     idToMarketItem[_itemId] = _marketItem;
-    //     userID++;
-    // }
-    // function makeUserVip(uint _itemId,uint _userID) external  {
-    //     require(idToMarketItem[_itemId].seller == msg.sender,"Only NFT Artist can add private person");
-    //     Person memory _person = registeredPersonNumber[_userID];
-    //     MarketItem memory  _marketItem = idToMarketItem[_itemId];
-    //     _person.isVip = true;
-    //     _marketItem.totalVipUser++;    
-    //     registeredPersonNumber[_userID] = _person;
-    //     idToMarketItem[_itemId] = _marketItem;
-    // }
+    ADMIN Side
     */
 
     function makeConsensius(uint _itemId,bool _choise) public onlyAdmin returns(bool result){
         bool voted = false;
         if(registeredAdmin[msg.sender].AdminAddress != address(0)){
-            if(_choise==true){idToMarketItem[_itemId].countResultTrue++;}voted=true;
+            if(_choise==true){
+                idToMarketItem[_itemId].countResultTrue++;
+            }
+        voted=true;
         }
         return voted;
     }
     
 
     function addAdmin(address _newAdmin) public onlyAdmin {
-            Admin memory _admin = registeredAdmin[_newAdmin];
-
-            if(registeredAdmin[msg.sender].AdminAddress != address(0)){
-                _admin.AdminAddress =  _newAdmin;
-                registeredAdmin[_newAdmin] = _admin;
-            }
-        
+        require(_newAdmin != address(0),"add address dam it!");
+        Admin memory _admin = registeredAdmin[_newAdmin];
+        _admin.AdminAddress =  _newAdmin;
+        registeredAdmin[_newAdmin] = _admin;  
     }
+
+    function addContractWhitelist(address _newContract,uint _maxPayedAmount,bool _isUsable) public onlyAdmin {
+        WhiteListContract memory _contract = whiteListForNft[_newContract];
+        _contract.contractAddress =  _newContract;
+        _contract.maxPayedAmount=_maxPayedAmount;
+        _contract.isUsable = _isUsable;
+        whiteListForNft[_newContract] = _contract;
+    }
+
+    // function updateContractWhitelist(address newContract,uint _maxPayedAmount,bool _isUsable) public onlyAdmin {
+    //     WhiteListContract memory _contract = whiteListForNft[newContract];
+    //     _contract.contractAddress =  newContract;
+    //     _contract.maxPayedAmount=_maxPayedAmount;
+    //     _contract.isUsable = _isUsable;
+    //     whiteListForNft[newContract] = _contract;
+    // }
+   
+    
 
     // function sendToMonoPrivate(uint _itemId) payable external  { 
     //     require(idToMarketItem[_itemId].seller == msg.sender,"Only NFT Artist can add private person");
@@ -541,9 +570,7 @@ contract Mono is DSMath,ReentrancyGuard{
             uint256  myAmount = 0 ether;
             uint256  myPay = 0 ether;
 
-            uint payedAmount = 0;
-
-            Person[] memory users = new Person[](userID);
+            //Person[] memory users = new Person[](userID);
             for (uint i = 0; i < userID; i++) {
                 if (registeredPersonNumber[i + 1].name == msg.sender && registeredPersonNumber[i + 1].item == _itemId) {
                     uint currentId = i + 1;
@@ -553,7 +580,6 @@ contract Mono is DSMath,ReentrancyGuard{
                 }
             }
             myPay = wdiv(myAmount,idToMarketItem[_itemId].payedCost);
-
             myProfit = wmul(myPay,idToMarketItem[_itemId].lendersProfit);
             myTotalProfit = add(myAmount,myProfit);
 
@@ -574,29 +600,22 @@ contract Mono is DSMath,ReentrancyGuard{
     }
     */
 
-    function payBackForNFT(uint256 itemId) payable public nonReentrant {
-        uint256 expectedPrice = idToMarketItem[itemId].price + 1 ether;
-        require(idToMarketItem[itemId].seller == msg.sender,"You are not the owner");
-        require(expectedPrice== msg.value,"not correct amount");
-        MarketItem memory  _marketItem = idToMarketItem[itemId];
-        _marketItem.isArtistPayed = true;
-        idToMarketItem[itemId] = _marketItem;
-    } 
+
 
     function withdraw() public nonReentrant {
         require(msg.sender == admin,"only admin");
         payable(msg.sender).transfer(payable(address(this)).balance);
     }
 
-    function transferNFTtoAdmin(address nftContract,uint256 tokenId,uint256 itemId) public nonReentrant{
+    function transferNFTtoAdmin(address _nftContract,uint256 _tokenId,uint256 _itemId) public {
         require(msg.sender == admin,"only admin");
-        idToMarketItem[itemId].owner = admin;
-        //IERC721(nftContract).transferFrom(address(this), msg.sender, tokenId);
+        idToMarketItem[_itemId].owner = admin;
+        IERC721(_nftContract).transferFrom(address(this), msg.sender, _tokenId);
     }
 
     function shareWithLenders(uint256 _itemId) public payable{
         require(idToMarketItem[_itemId].itemId > 0,"This nft not in our process."); 
-        require(idToMarketItem[_itemId].sold == true,"This nft not sold yet."); 
+        require(idToMarketItem[_itemId].sold == true,"This nft not sold"); 
         uint currentIndex = 0;
 
         uint256  myTotalProfit = 0 ether;
@@ -604,7 +623,7 @@ contract Mono is DSMath,ReentrancyGuard{
         uint256  myAmount = 0 ether;
         uint256  myPay = 0 ether;
 
-        Person[] memory users = new Person[](userID);
+        //Person[] memory users = new Person[](userID);
         for (uint i = 0; i < userID; i++) {
             if (registeredPersonNumber[i + 1].name == msg.sender && registeredPersonNumber[i + 1].item == _itemId) {
                 uint currentId = i + 1;
@@ -619,5 +638,12 @@ contract Mono is DSMath,ReentrancyGuard{
         myTotalProfit = add(myAmount,myProfit);
         payable(msg.sender).transfer(myTotalProfit);
     }
+    function sendEtherToContract() payable public {
+        // nothing else to do!
+    }
+    function getContractBalance() public view returns (uint256) {
+        return address(this).balance;
+    }
 
 }
+
