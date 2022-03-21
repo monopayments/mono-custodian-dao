@@ -292,7 +292,7 @@ contract Mono is DSMath,ReentrancyGuard{
 
     function sendNFTtoMono(address nftContract,uint256 tokenId,uint256 expectedPrice,uint256 endDate,uint256 _lendersProfit) public payable nonReentrant {
         require(expectedPrice > 0, "Price must be at least 1 wei");
-        require(msg.value == expectedPrice, "Price must be equal to listing price");
+        //require(msg.value == expectedPrice, "Price must be equal to listing price");
         uint256 deadline = block.timestamp + (endDate * 100 seconds);
 
         _itemIds.increment();
@@ -366,7 +366,7 @@ contract Mono is DSMath,ReentrancyGuard{
         require(idToMarketItem[itemId].countResultTrue >= 2,"Make Consensus proof");
         uint price = idToMarketItem[itemId].price;
         uint tokenId = idToMarketItem[itemId].tokenId;
-        require(msg.value == price, "Please submit the asking price in order to complete the purchase");
+        //require(msg.value == price, "Please submit the asking price in order to complete the purchase");
         
         //IERC721(nftContract).transferFrom(address(this), msg.sender, tokenId);
         idToMarketItem[itemId].owner = payable(msg.sender);
@@ -492,8 +492,9 @@ contract Mono is DSMath,ReentrancyGuard{
         _person.isVip = true;
         _person.item= _itemId;
         whiteListForUser[userID] = _person;
-        return userID;
         userID++;
+        return userID;
+        
     }
 
     /*
