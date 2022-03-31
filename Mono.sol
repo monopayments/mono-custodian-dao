@@ -286,6 +286,14 @@ contract Mono is DSMath,ReentrancyGuard{
         require(msg.sender == admin || registeredAdmin[msg.sender].AdminAddress != address(0) ,"Only Admin");
         _;
     }
+    modifier notInstallmentDeadline(uint _itemId) {
+        require(block.timestamp<=idToMarketItem[_itemId].nftDeadline,"Installment Deadline");
+        _;
+        MarketItem memory  _marketItem = idToMarketItem[_itemId];
+        idToMarketItem[_itemId].price = idToMarketItem[_itemId].price + 0.1 ether;
+        idToMarketItem[_itemId].nftDeadline = block.timestamp+2592000 seconds;//added 30 days
+        idToMarketItem[_itemId] = _marketItem;
+    }
 
     constructor(){
         owner=payable(msg.sender);
@@ -585,10 +593,10 @@ contract Mono is DSMath,ReentrancyGuard{
 
     //****** WILL DO AGAIN ****
   
-    function installmentMono(uint _itemId) payable external {
+    function installmentMono(uint _itemId) payable external notInstallmentDeadline(_itemId){
         require(idToMarketItem[_itemId].itemId>0,"This nft not in our process.");
         require(idToMarketItem[_itemId].installmentPayedOption == true,"Installment option only");
-        require(block.timestamp <= idToMarketItem[_itemId].nftDeadline, "Installment Deadline !");
+        //require(block.timestamp <= idToMarketItem[_itemId].nftDeadline, "Installment Deadline !");
         uint256 amount = msg.value;
         require(msg.value == idToMarketItem[_itemId].price, "Please enter your installment amount for one correctly");
         
