@@ -1,4 +1,8 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only 
+// MonoPayments Custodian DAO Contract
+// Version: 0.0.1
+// Author: @monopayments
+
 pragma solidity >=0.8.0 <0.9.0;
 
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
