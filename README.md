@@ -1,4 +1,4 @@
-# Mono Custodian Dao
+# MonoPayments Custodian DAO for NFTs
 
 <h1>User Roles</h1>
 
